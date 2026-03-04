@@ -1,0 +1,179 @@
+<style>
+    body { font-family: Arial; margin: 10px; }
+
+    body.modal-open {
+      overflow: hidden;
+    }
+
+    input[type="text"],
+    input[type="number"],
+    select,
+    textarea {
+      width: 100%;
+      font-size: 1.15rem;
+      padding: 10px;
+      border-radius: 6px;
+      border: 1px solid #888;
+      box-sizing: border-box;
+      margin-bottom: 8px;
+    }
+
+    .position select,
+    .position input {
+      font-size: 1.1rem;
+      padding: 8px 10px;
+    }
+
+    .position { 
+      margin-bottom: 10px; 
+      padding: 10px; 
+      background: #f3f3f3; 
+      border-radius: 6px; 
+      border-color: #000000;
+      border-width: 1px;
+      border-style: solid;
+    }
+    
+    button { margin-top: 5px; }
+
+    /* Make Submit Order button large and prominent */
+    #submitOrderBtn {
+      background-color: #28a745;  /* green */
+      color: white;
+      font-size: 1.2rem;
+      font-weight: bold;
+      padding: 8px 16px;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      box-shadow: 0 3px 4px rgba(0,0,0,0.2);
+      transition: transform 0.1s, background-color 0.2s;
+    }
+
+    #submitOrderBtn:hover {
+      background-color: #218838;
+      transform: scale(1.03);
+    }
+
+  /* ---- MODAL BACKDROP ---- */
+  .modal {
+    display: none;
+    position: fixed;
+    z-index: 99999;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0,0,0,0.55);
+    backdrop-filter: blur(3px);
+  }
+
+  /* ---- MODAL BOX ---- */
+  /*
+  .modal-content {
+    background: white;
+    padding: 5px;
+    box-shadow: 0 0 15px rgba(0,0,0,0.3);
+    font-size: 0.85rem;
+    max-height: 90vh;          
+    overflow-y: auto;         
+  }
+
+  .modal-buttons {
+    text-align: right;
+  }*/
+
+.modal-content {
+  background: white;
+  width: 100%;
+  max-width: 650px;
+  max-height: 90vh;
+
+  display: flex;
+  flex-direction: column;
+  border-radius: 8px;
+}
+
+.modal-text {
+  max-height: 800px;
+  overflow-y: auto;
+  background: #f6f6f6;
+  white-space: pre-wrap;
+  font-family: monospace;
+
+  font-size: 0.85rem;   
+  font-weight: bold;
+}
+
+/* Scroll only content area */
+#confirm-container,
+#confirm-container-bottom {
+  overflow-y: auto;
+}
+
+/* Make main content scrollable */
+#confirm-container {
+  flex: 1;
+  overflow-y: auto;
+}
+
+/* Keep buttons fixed at bottom */
+.modal-buttons {
+  margin-top: 10px;
+  margin-bottom: 10px;
+  flex-shrink: 0;
+}
+
+.cancel-btn,
+.confirm-btn {
+  padding: 10px 18px;
+  font-size: 1rem;
+  font-weight: bold;
+  border-radius: 6px;
+  cursor: pointer;
+  border: none;
+}
+
+.cancel-btn {
+  background: #cccccc;
+  margin-right: 10px;
+}
+
+.confirm-btn {
+  background: #28a745;
+  color: white;
+}
+
+/* Make spinner arrows larger */
+input[type=number]::-webkit-inner-spin-button,
+input[type=number]::-webkit-outer-spin-button {
+  transform: scale(1.4);
+}
+
+  /* Your existing styling */
+  input[type="text"],
+  input[type="number"],
+  select,
+  textarea {
+    width: 100%;
+    font-size: 1.15rem;
+    padding: 10px;
+    border-radius: 6px;
+    border: 1px solid #888;
+    box-sizing: border-box;
+    margin-bottom: 8px;
+  }
+
+  .position select,
+  .position input {
+    font-size: 1.1rem;
+    padding: 8px 10px;
+  }
+
+  .position-header {
+    display: flex;
+    justify-content: space-between;  /* 🔥 pushes button right */
+    align-items: center;
+  }
+
+</style>

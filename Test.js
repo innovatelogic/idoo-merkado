@@ -1,7 +1,7 @@
 //----------------------------------------------------------------------------------------------
 //
 //----------------------------------------------------------------------------------------------
-function Test_PrepareCalculationInfo() {
+function TEST_PrepareCalculationInfo() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   const sheet = ss.getSheetByName("Orders New");
   if (!sheet) {
@@ -29,7 +29,7 @@ function Test_PrepareCalculationInfo() {
 //----------------------------------------------------------------------------------------------
 //
 //----------------------------------------------------------------------------------------------
-function Test_onCalculationConfirmed(backets_str) {
+function TEST_onCalculationConfirmed(backets_str) {
   const data = `
   {
     "0": {
@@ -68,7 +68,29 @@ function Test_onCalculationConfirmed(backets_str) {
       ],
       "profit": 282
     }
-  }
-  `;
+  }`;
+  
   onCalculationConfirmed(JSON.parse(data));
+}
+
+//----------------------------------------------------------------------------------------------
+//
+//----------------------------------------------------------------------------------------------
+function runAllTests() {
+  const tests = Object.keys(this)
+    .filter(name => name.startsWith('TEST_'));
+
+  let passed = 0;
+
+  tests.forEach(name => {
+    try {
+      this[name]();
+      console.log(`✅ ${name}`);
+      passed++;
+    } catch (e) {
+      console.error(`❌ ${name}: ${e.message}`);
+    }
+  });
+
+  console.log(`\n${passed}/${tests.length} tests passed`);
 }

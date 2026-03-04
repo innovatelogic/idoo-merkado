@@ -78,7 +78,11 @@ function RemoveAlreadyCalculatedOrders(backets) {
     // orders is OBJECT { orderId: [rows] }
     if (typeof obj.orders === "object" && !Array.isArray(obj.orders)) {
       for (const orderId of Object.keys(obj.orders)) {
-        if (processingSet.has(orderId)) {
+
+        const orderArray = obj.orders[orderId]; // this is an array of elements
+        const hasCanceled = orderArray.some(el => (el.status || "").trim() === "Відмінено");
+
+        if (processingSet.has(orderId) || hasCanceled) {
           alreadyCalculatedSet.add(orderId);
           delete obj.orders[orderId];
         }

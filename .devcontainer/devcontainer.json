@@ -1,0 +1,11 @@
+{
+  "name": "GAS DevContainer",
+  "image": "mcr.microsoft.com/vscode/devcontainers/javascript-node:20",
+  "features": {
+    "ghcr.io/devcontainers/features/node:1": {}
+  },
+  "postCreateCommand": "npm install -g @google/clasp",
+  "forwardPorts": [],
+  "workspaceMount": "source=${localWorkspaceFolder},target=/workspace,type=bind",
+  "workspaceFolder": "/workspace"
+}
