@@ -181,24 +181,6 @@ function import_xbat_products_from_xml() {
         // -------------------------
         // Product images (prevent duplicates)
         // -------------------------
-        $images = [];
-        foreach ($offer->picture as $pic) {
-            $images[] = (string)$pic;
-        }
-
-        if (!empty($images)) {
-            $attachment_ids = [];
-            foreach ($images as $image_url) {
-                $existing_id = xbat_find_existing_image($image_url, $product->get_id());
-                if ($existing_id) {
-                    $attachment_ids[] = $existing_id;
-                } else {
-                    $attachment_ids[] = import_image_from_url($image_url, $product->get_id());
-                }
-            }
-            if ($attachment_ids) $product->set_gallery_image_ids($attachment_ids);
-            $product->set_image_id($attachment_ids[0]);
-        }
         
         $product_id_saved = $product->save();
         if (!$product_id_saved) {
@@ -233,16 +215,64 @@ function import_xbat_products_from_xml() {
             // Optional cleanup if old key was used before:
             delete_post_meta($product_id_saved, '_wc_tiered_price_table');
         }
-        
-        
+
+
+        // 2) Populate images AFTER save
+        $images = [];
+        foreach ($offer->picture as $pic) {
+            $images[] = (string)$pic;
+        }
+
+        if (!empty($images)) {
+            $attachment_ids = [];
+
+            foreach ($images as $image_url) {
+                $existing_id = xbat_find_existing_image($image_url, $product_id_saved);
+                $attachment_id = $existing_id ?: import_image_from_url($image_url, $product_id_saved);
+
+                if ($attachment_id) {
+                    $attachment_ids[] = (int)$attachment_id;
+                }
+            }
+
+            $attachment_ids = array_values(array_unique($attachment_ids));
+
+            if (!empty($attachment_ids)) {
+                $featured_id = (int)$attachment_ids[0];
+                $gallery_ids = array_slice($attachment_ids, 1); // exclude featured from gallery
+
+                $product->set_image_id($featured_id);           // featured image
+                $product->set_gallery_image_ids($gallery_ids);  // gallery only remaining images
+                $product->save(); // persist image assignments
+            }
+        } 
     }
 
     error_log("XBAT IMPORT FINISHED");
 }
 
-// -------------------------
-// Import image by URL
-// -------------------------
+function xbat_find_existing_image($image_url, $product_id) {
+    $attachments = get_posts([
+        'post_type'      => 'attachment',
+        'posts_per_page' => 1,
+        'post_parent'    => $product_id,
+        'fields'         => 'ids',
+        'meta_query'     => [
+            [
+                'key'     => '_xbat_source_image_url',
+                'value'   => (string)$image_url,
+                'compare' => '='
+            ]
+        ]
+    ]);
+
+    if (!empty($attachments)) {
+        return (int)$attachments[0];
+    }
+
+    return false;
+}
+
 function import_image_from_url($image_url, $product_id) {
     require_once(ABSPATH . 'wp-admin/includes/file.php');
     require_once(ABSPATH . 'wp-admin/includes/media.php');
@@ -252,7 +282,7 @@ function import_image_from_url($image_url, $product_id) {
     if (is_wp_error($tmp)) return false;
 
     $file_array = [
-        'name'     => basename($image_url),
+        'name'     => basename(parse_url($image_url, PHP_URL_PATH)),
         'tmp_name' => $tmp
     ];
 
@@ -263,25 +293,7 @@ function import_image_from_url($image_url, $product_id) {
         return false;
     }
 
+    update_post_meta($id, '_xbat_source_image_url', (string)$image_url);
+
     return $id;
-}
-
-// -------------------------
-// Find existing image for product
-// -------------------------
-function xbat_find_existing_image($image_url, $product_id) {
-    $attachments = get_posts([
-        'post_type'      => 'attachment',
-        'posts_per_page' => -1,
-        'post_parent'    => $product_id,
-        'meta_query'     => [
-            [
-                'key'     => '_wp_attached_file',
-                'value'   => basename($image_url),
-                'compare' => 'LIKE'
-            ]
-        ]
-    ]);
-
-    return $attachments ? $attachments[0]->ID : false;
 }
