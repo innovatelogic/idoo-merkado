@@ -113,10 +113,6 @@ function import_xbat_products_from_xml() {
         error_log("ERROR: <offers> node not found");
         return;
     }
-    
-    // -------------------------
-    // Build category map
-    // -------------------------
 
     $offers = $shop->offers->offer;
 
@@ -203,12 +199,42 @@ function import_xbat_products_from_xml() {
             if ($attachment_ids) $product->set_gallery_image_ids($attachment_ids);
             $product->set_image_id($attachment_ids[0]);
         }
-
-        $product->save();
         
-        if ($category_id) {
-            wp_set_object_terms( $product->get_id(), (int)$category_id, 'product_cat');
+        $product_id_saved = $product->save();
+        if (!$product_id_saved) {
+            $product_id_saved = $product->get_id();
         }
+
+        if ($category_id) {
+            wp_set_object_terms($product_id_saved, (int)$category_id, 'product_cat');
+        }
+
+        if (isset($offer->price_rule)) {
+            $fixed_price_rules = [];
+        
+            foreach ($offer->price_rule as $rule) {
+                $min_qty = isset($rule['min']) ? (int)$rule['min'] : 1;
+                $price   = (float)$rule;
+        
+                if ($min_qty > 0 && $price > 0) {
+                    // Format expected by your plugin/meta:
+                    // [min_qty => "price"]
+                    $fixed_price_rules[$min_qty] = (string)(0 + $price);
+                }
+            }
+        
+            if (!empty($fixed_price_rules)) {
+                ksort($fixed_price_rules, SORT_NUMERIC);
+                update_post_meta($product_id_saved, '_fixed_price_rules', $fixed_price_rules);
+            } else {
+                delete_post_meta($product_id_saved, '_fixed_price_rules');
+            }
+        
+            // Optional cleanup if old key was used before:
+            delete_post_meta($product_id_saved, '_wc_tiered_price_table');
+        }
+        
+        
     }
 
     error_log("XBAT IMPORT FINISHED");
