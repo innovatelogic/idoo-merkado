@@ -277,10 +277,29 @@ function applyExportRulesXML(xmlString, context) {
 }
 
 //----------------------------------------------------------------------------------------------
-// Walk XML DOM
-//----------------------------------------------------------------------------------------------
-function walkXmlNode(node, context) {
+function build_xml_tree(xml_node, context) {
+  if (!xml_node) { return; }
+  
+  walkXmlNode(xml_node, context);
+}
 
+//----------------------------------------------------------------------------------------------
+// Build context recursively
+// returns new context
+//----------------------------------------------------------------------------------------------
+function build_node(node, context){
+  let new_context = { ... context};
+  if (!node){ return new_context; }
+
+  build_xml_node(node, context);
+  new_context[node.getName()] = node.getValue();
+  return new_context;
+}
+
+//----------------------------------------------------------------------------------------------
+// Build xml node
+//----------------------------------------------------------------------------------------------
+function build_xml_node(node, context) {
   // ---------- Attributes ----------
   const attrs = node.getAttributes();
   for (let i = 0; i < attrs.length; i++) {
@@ -314,6 +333,14 @@ function walkXmlNode(node, context) {
       node.setText(newText);
     }
   }
+}
+
+//----------------------------------------------------------------------------------------------
+// Walk XML DOM
+//----------------------------------------------------------------------------------------------
+function walkXmlNode(node, context) {
+
+  build_xml_node(node, context);
 
   // ---------- Child elements ----------
   const children = node.getChildren();

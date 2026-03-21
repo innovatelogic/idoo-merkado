@@ -43,13 +43,16 @@ function get_all_items_v2(table_name = 'Articuls_v2') {
   if (lastRow < 2) return [];
 
   // A–K → 11 columns
-  const data = sh.getRange(2, 1, lastRow - 1, lastCol).getValues();
+  const data = sh.getRange(2, 1, lastRow - 1, lastCol)
+                 .getValues()
+                 .filter(row => row.some(cell => cell !== '' && cell !== null));
 
   const items = [];
 
   data.forEach(row => {
     const offer_id  = row[headers['offer_id']];
     const brand     = row[headers['Brand']];
+    const market_name = row[headers['Market Name']];
     const name      = row[headers['Name']];
     const condition = row[headers['Condition']];
     const available  = row[headers['Available']];
@@ -57,7 +60,7 @@ function get_all_items_v2(table_name = 'Articuls_v2') {
     const bare_price = row[headers['Ціна поставки (UAH)']];
     const sell_price = row[headers['Sell Price (UA)']];
     const sell_price_pl = row[headers['Sell Price (PL)']];
-    const price_rule_raw = row[headers['Price rule']];
+    const price_rule_raw = row[headers['Price rule(UA)']];
 
     const weight = row[headers['Weight (gr)']];
     const type = row[headers['Type']];
@@ -68,14 +71,16 @@ function get_all_items_v2(table_name = 'Articuls_v2') {
 
     const export_rules_raw = row[headers['Export Rules']];
 
-    const images = images_raw.split(/\r?\n/)
+    const images = (images_raw || "")
+                      .split(/\r?\n/)
                       .map(s => s.trim())
                       .filter(Boolean); // remove empty lines
 
-    const context = {
+    let context = {
         OFFER_ID: offer_id,
         BRAND: brand,
         NAME: name,
+        MARKET_NAME: market_name,
         CONDITION: condition,
         AVAILABLE: available,
         SELL_PRICE: sell_price,
@@ -108,15 +113,26 @@ function get_all_items_v2(table_name = 'Articuls_v2') {
       }
     }
 
-    
-
     let export_rules = null;
     if (export_rules_raw && typeof export_rules_raw === "string") {
 
       try {
-        export_rules = applyExportRulesXML(export_rules_raw, context);
+        const doc = XmlService.parse(export_rules_raw);
+        const xml_root = doc.getRootElement();
+
+        const xml_user_vars = xml_root.getChild("user_vars");
+        if (xml_user_vars !== null){
+          const children = xml_user_vars.getChildren();
+
+          for (const child of children){
+            context = build_node(child, context);
+          }
+        }
+
+        build_xml_tree(xml_root, context);
+        export_rules = XmlService.getPrettyFormat().format(doc);
       } catch (e) {
-        console.log("Failed:");
+        console.log("Failed to export:" + offer_id);
         exprt_rules = null;
       }
     }
@@ -135,7 +151,9 @@ function get_all_items_v2(table_name = 'Articuls_v2') {
 
   return items;
 }
-
+//----------------------------------------------------------------------------------------------
+//
+//----------------------------------------------------------------------------------------------
 function xmlToNormalizedString(xml) {
   const doc = XmlService.parse(xml);
   return XmlService.getCompactFormat().format(doc);
@@ -150,7 +168,7 @@ function TEST_applyExportRulesXML(){
         OFFER_ID: 1001,
         BRAND: "_BRAND_",
         NAME: "_NAME_",
-        CONDITION: "NEW",
+        CONDITION: "used",
         AVAILABLE: "Available",
         SELL_PRICE: 101,
         COUNT: 500,
@@ -176,9 +194,15 @@ function TEST_applyExportRulesXML(){
     });
 
     const xml_raw = `<g:export xmlns:g="http://example.com/google">
+
+                      <user_vars>
+                        <VAR_USED>(\${CONDITION} == 'new') ? '': 'Б/В'</VAR_USED>
+                        <CHECK>(\${VAR_USED} == 'Б/В') ? 'OK': 'FAILED'</CHECK>
+                      </user_vars>
+
                       <g:Prom>
                           <g:offer id="\${OFFER_ID}" available="(\${AVAILABLE} == 'Available') ? 'true' : 'false' " in_stock="(\${COUNT} > 0 &amp;&amp; \${AVAILABLE} == 'Available') ? 'in stock' : 'false' " selling_type="u">
-                                <g:name>Акумулятор \${BRAND} \${NAME} (нові-депакет)</g:name>
+                                <g:name>Акумулятор \${BRAND} \${NAME} (нові-депакет) \${VAR_USED}</g:name>
                                 <g:categoryId>0</g:categoryId>
                                 <g:portal_category_id>1507</g:portal_category_id>
                                 <g:price>ceil5($(SELL_PRICE) * 1.2)</g:price>
@@ -218,9 +242,15 @@ function TEST_applyExportRulesXML(){
   
   const expected = `<?xml version="1.0" encoding="UTF-8"?>
     <g:export xmlns:g="http://example.com/google">
+
+      <user_vars>
+        <VAR_USED>Б/В</VAR_USED>
+        <CHECK>OK</CHECK>
+      </user_vars>
+
       <g:Prom>
         <g:offer available="true" id="1001" in_stock="in stock" selling_type="u">
-          <g:name>Акумулятор _BRAND_ _NAME_ (нові-депакет)</g:name>
+          <g:name>Акумулятор _BRAND_ _NAME_ (нові-депакет) Б/В</g:name>
           <g:categoryId>0</g:categoryId>
           <g:portal_category_id>1507</g:portal_category_id>
           <g:price>125</g:price>
@@ -255,9 +285,24 @@ function TEST_applyExportRulesXML(){
       </g:Prom>
     </g:export>`;
 
-  const result = applyExportRulesXML(xml_raw, context);
+  const doc = XmlService.parse(xml_raw);
+  const xml_root = doc.getRootElement();
+
+  const xml_user_vars = xml_root.getChild("user_vars");
+  if (xml_user_vars !== null){
+    const children = xml_user_vars.getChildren();
+
+    for (const child of children){
+      context = build_node(child, context);
+    }
+  }
+
+  build_xml_tree(xml_root, context);
+
+  let result = XmlService.getPrettyFormat().format(doc);
+
   if (!equal_xml(result, expected)){
-    throw new Error(`Test failed. Expected ${expected}, got >>>> ${result}`);
+    throw new Error(`Test failed. Expected \n ${expected} \n got >>>> \n ${result}`);
   }
 
   console.log(`✅ ${getCallerFunctionName()} Test passed`);

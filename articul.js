@@ -3,6 +3,7 @@ class Articul {
     this._offer_id = context.offer_id;
     this._brand = context.brand;
     this._name = context.name;
+    this._market_name = context.market_name;
     this._condition = context.condition;
     this._available = context.available;
     this._bare_price = context.bare_price;
@@ -26,6 +27,7 @@ class Articul {
         OFFER_ID: this._offer_id,
         BRAND: this._brand,
         NAME: this._name,
+        MARKET_NAME: this._market_name,
         CONDITION: this._condition,
         AVAILABLE: this._available,
         SELL_PRICE: this._sell_price,
@@ -96,15 +98,16 @@ function deserialize_articuls(table_name = 'Articuls_v2') {
   const articuls = [];
 
   data.forEach(row => {
-    try {
-      const images_raw = row[headers['Images']];
-      const price_rule_raw = row[headers['Price rule']];
-      const export_rules_raw = row[headers['Export Rules']];
 
+    const price_rule_ua = row[headers['Price rule(UA)']];
+    const price_rule_pl = row[headers['Price rule(PL)']];
+
+    try {
       const context = {
         offer_id: row[headers['offer_id']],
         brand: row[headers['Brand']],
         name: row[headers['Name']],
+        market_name: row[headers['Market Name']],
         condition: row[headers['Condition']],
         available: row[headers['Available']],
         bare_price: row[headers['Ціна поставки (UAH)']],
@@ -114,9 +117,11 @@ function deserialize_articuls(table_name = 'Articuls_v2') {
         count: row[headers['Count']],
         weight: row[headers['Weight (gr)']] / 1000,
         type: row[headers['Type']],
-        images_raw,
-        export_rules_raw,
-        price_rules_raw: price_rule_raw,
+        images_raw : row[headers['Images']],
+        export_rules_raw : row[headers['Export Rules']],
+        price_rules_raw: row[headers['Price rule(UA)']],   // default UA price rule
+        price_rules_UA_raw: row[headers['Price rule(UA)']],
+        price_rules_PL_raw: row[headers['Price rule(PL)']],
       };
 
       articuls.push(new Articul(context));
@@ -144,9 +149,14 @@ function TEST_ArticulObject(){
     count : 500,
     type : "type",
     export_rules_raw: `<g:export xmlns:g="http://example.com/google">
+
+                      <user_vars>
+                        <VAR_USED>(\${CONDITION} == 'new') ? 'Новий': 'Вживані'</VAR_USED>
+                      </user_vars>
+
                       <g:Prom>
                           <g:offer id="\${OFFER_ID}" available="(\${AVAILABLE} == 'Available') ? 'true' : 'false' " in_stock="(\${COUNT} > 0) ? 'in stock' : 'false'" selling_type="u">
-                                <g:name>Акумулятор \${BRAND} \${NAME} (нові-депакет)</g:name>
+                                <g:name>Акумулятор \${BRAND} \${NAME} \${CONDITION} == 'new') ? 'Новий': 'Вживані'</g:name>
                                 <g:categoryId>0</g:categoryId>
                                 <g:portal_category_id>1507</g:portal_category_id>
                                 <g:price>ceil5(\$(SELL_PRICE) * 1.2)</g:price>
@@ -216,7 +226,6 @@ function TEST_ArticulObject(){
 
   const articul = new Articul(ctx);
 
-  
   const expected_price_rule = [ { min: 1, max: 300, price: 110 },
                                 { min: 300, max: 1000, price: 100 },
                                 { min: 1000, max: 999999999, price: 95 } ];
@@ -253,21 +262,41 @@ function TEST_ArticulObject(){
       <g:param name="Тип акумулятора">Li-Ion</g:param>
     </g:offer>
   </g:Prom>
-
   <Rozetka>
-  <offer available="(\${AVAILABLE} == 'Available') ? 'true' : 'false' ">
+    <offer available="false" id="60001">
+      <price>135</price>
+      <currencyId>UAH</currencyId>
+      <categoryId>0</categoryId>
+      <vendor>articul brand</vendor>
+      <article>60001</article>
+      <name>Акумулятор articul brand articul name (нові-депакет)</name>
+      <description cdata="true"><![CDATA[Акумулятор - articul brand articul name (new)<br/>
 
-  </offer>
+                          Виробник: articul brand<br/>
+                          Тип: Li-ion<br/>
+                          Опір 14-15 mom]]></description>
+      <picture>https://idoo-public.s3.eu-central-1.amazonaws.com/articuls/61000/img1.webp</picture>
+      <picture>https://idoo-public.s3.eu-central-1.amazonaws.com/articuls/61000/img2.webp</picture>
+      <picture>https://idoo-public.s3.eu-central-1.amazonaws.com/articuls/61000/img3.webp</picture>
+      <picture>https://idoo-public.s3.eu-central-1.amazonaws.com/articuls/61000/img4.webp</picture>
+      <picture>https://idoo-public.s3.eu-central-1.amazonaws.com/articuls/61000/img5.webp</picture>
+      <picture>https://idoo-public.s3.eu-central-1.amazonaws.com/articuls/61000/img6.webp</picture>
+      <param name="Стан">Новий</param>
+      <param name="Типорозмір">18650</param>
+      <param name="Тип акумулятора">Li-Ion</param>
+    </offer>
   </Rozetka>
-
 </g:export>`;
 
   let export_rules_xml = articul.get_export_rules();
+
+  console.log(export_rules_xml);
 
   const expected_frmt_xml = XmlService.getCompactFormat().format(XmlService.parse(expected));
   const export_rules_frmt_xml = XmlService.getCompactFormat().format(XmlService.parse(export_rules_xml));
 
   console.log(export_rules_xml);
+  console.log(expected);
 
   if (expected_frmt_xml !== export_rules_frmt_xml){
     throw new Error(`Test failed. Expected ${expected}, got >>>> ${export_rules_xml}`);

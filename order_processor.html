@@ -7,6 +7,30 @@
 <body>
 
 <script>
+
+  let order_tables = [];
+  google.script.run.withSuccessHandler(function(data) {
+
+    order_tables = data;
+
+    const select = document.getElementById("order-table");
+    select.innerHTML = order_tables.map((table, idx) =>
+      `<option value="${table}" item-idx="${idx}">
+        ${table}
+      </option>`
+    ).join('');
+
+    select.onchange = function() {
+      const index = this.selectedIndex;
+      const option = this.options[index];
+
+      init_form(order_tables[index]);
+    };
+
+    init_form(order_tables[0]);
+  }).get_order_tables();
+
+
   let items = [];
   let articuls = [];
   let positions = [];
@@ -31,6 +55,13 @@
     transfer_price_kg = data;
   }).get_transfer_price();
 
+//----------------------------------------------------------------------------------------------
+  function init_form(table_name) {
+    google.script.run.withSuccessHandler(function(data) {
+      // TODO
+    }).deserialize_orders(table_name);
+  }
+  
 //----------------------------------------------------------------------------------------------
   function addAccaunts() {
     const container = document.getElementById('accounts');
@@ -786,7 +817,9 @@ function evalFormula(str, context) {
 }
 </script>
 
-  <h2>Нове замовлення</h2>
+  <h2>Orders calculator</h2>
+
+  <select id="order-table"></select><br>
 
   <label>Дані покупця</label><br>
   <textarea id="client-info" style="width:100%; height:90px; resize:vertical;"></textarea><br><br>
@@ -826,3 +859,4 @@ function evalFormula(str, context) {
 
 </body>
 </html>
+

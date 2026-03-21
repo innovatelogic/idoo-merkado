@@ -4,30 +4,29 @@
 function onOpen() {
   SpreadsheetApp.getUi()
     .createMenu('🔋 XBat Shop')
-    .addItem('Створити', 'showOrderForm')
-    .addItem('Створити new (test)', 'showOrderFormNew')
+    .addItem('Створити', 'show_order_form')
+    .addItem('Створити (Old version)', 'show_order_form_old')
     .addItem('Розрахувати', 'showCalculationForm')
+    .addItem('Розрахувати (new)', 'show_calculation_form_new')
     .addItem('Export all', 'export_all')
     .addToUi();
 }
 
 //----------------------------------------------------------------------------------------------
-// Show the order form as SIDEBAR
-function showOrderForm() {
-  const html = HtmlService.createHtmlOutputFromFile('index')
-      .setTitle('Додати')
-      .setWidth(800);  // Sidebar title
-  SpreadsheetApp.getUi().showSidebar(html);
-}
-
-//----------------------------------------------------------------------------------------------
-// Show the order form as SIDEBAR
-function showOrderFormNew() {
+function show_order_form() {
   const template = HtmlService.createTemplateFromFile('add_order');
   const html = template.evaluate()
-    .setTitle('Додати New')
+    .setTitle('Додати замовлення')
     .setWidth(1000);
 
+  SpreadsheetApp.getUi().showSidebar(html);
+}
+//----------------------------------------------------------------------------------------------
+// Show the order form as SIDEBAR
+function show_order_form_old() {
+  const html = HtmlService.createHtmlOutputFromFile('index')
+      .setTitle('Додати замовлення (Old version)')
+      .setWidth(800);  // Sidebar title
   SpreadsheetApp.getUi().showSidebar(html);
 }
 
