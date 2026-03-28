@@ -5,7 +5,6 @@ function onOpen() {
   SpreadsheetApp.getUi()
     .createMenu('🔋 XBat Shop')
     .addItem('Створити', 'show_order_form')
-    .addItem('Створити (Old version)', 'show_order_form_old')
     .addItem('Розрахувати', 'showCalculationForm')
     .addItem('Розрахувати (new)', 'show_calculation_form_new')
     .addItem('Export all', 'export_all')

@@ -1,5 +1,8 @@
 function cleanOldVersions() {
-  const SCRIPT_ID = '1YcQN273VFk8usOXH_uhDQSQeQEX-DYpWuBnaRZOPkWWN-sXyyhRX3Efb';
+  //const SCRIPT_ID = '1YcQN273VFk8usOXH_uhDQSQeQEX-DYpWuBnaRZOPkWWN-sXyyhRX3Efb';
+
+  const { SCRIPT_ID } = getSecrets();
+  
   const KEEP_LATEST = 10; // keep last N versions
 
   const token = ScriptApp.getOAuthToken();

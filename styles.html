@@ -175,5 +175,111 @@ input[type=number]::-webkit-outer-spin-button {
     justify-content: space-between;  /* 🔥 pushes button right */
     align-items: center;
   }
+  
+  //--------------------------------------------------------------
+  // 
+  //--------------------------------------------------------------
+  /* center checkbox */
+table {
+  border-collapse: collapse;
+  width: 100%;
+  background-color: white;
+}
+
+th, td {
+  padding: 6px;
+  text-align: left;
+  background-color: white;
+}
+
+table, 
+table th, 
+table td {
+  font-size: 0.9rem; /* adjust as needed */
+}
+
+tr.highlighted td {
+  background-color: #e6ffe6 !important; /* light green */
+}
+
+/* Suborder cells get borders */
+.suborder-cell {
+  border: 1px solid black;
+  background-color: white;
+}
+
+/* Merged cells: no border */
+.checkbox-cell,
+.order-id-cell {
+  border: none;
+  vertical-align: middle;
+  text-align: center; /* checkbox centered horizontally */
+  background-color: white;
+}
+
+/* Optional: center checkbox vertically */
+.checkbox-cell input[type="checkbox"] {
+  display: block;
+  margin: auto;
+}
+
+/* table styling */
+#order-bucket-0,
+#order-bucket-1, 
+#order-cancelled-bucket-0,
+#order-cancelled-bucket-0,
+#order-closed {
+  border-collapse: collapse;
+  width: 100%;
+  background-color: white;
+}
+
+#order-bucket-0 th,
+#order-bucket-0 td,
+#order-bucket-1 th,
+#order-bucket-1 td, 
+#order-cancelled-bucket-0 th,
+#order-cancelled-bucket-0 td, 
+#order-cancelled-bucket-1 th,
+#order-cancelled-bucket-1 td,
+#order-closed th,
+#order-closed td {
+  border: 1px solid black;
+  padding: 6px;
+  text-align: left;
+  background-color: white;
+}
+
+.summary-table-container {
+  display: flex;
+  justify-content: flex-end; /* aligns table to right */
+  margin-top: 10px;
+}
+
+.summary-table {
+  border-collapse: collapse;
+  text-align: left;
+  width: 250px;
+}
+
+.summary-table td {
+  padding: 6px 12px;
+  border: 1px solid black;
+  background-color: white;
+}
+
+.summary-label {
+  width: 30%;   /* first cell takes 30% */
+}
+
+.summary-value {
+  text-align: right; /* values aligned right */
+  font-weight: bold;
+}
+
+.button-row {
+  display: flex;
+  justify-content: flex-end; /* pushes button to the right */
+}
 
 </style>

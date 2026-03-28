@@ -5,14 +5,14 @@
 </head>
 
 <body>
-
 <script>
 
   let order_tables = [];
+  let order_buckets = {};
+  let checked_orders = new Set();
+
   google.script.run.withSuccessHandler(function(data) {
-
     order_tables = data;
-
     const select = document.getElementById("order-table");
     select.innerHTML = order_tables.map((table, idx) =>
       `<option value="${table}" item-idx="${idx}">
@@ -22,8 +22,6 @@
 
     select.onchange = function() {
       const index = this.selectedIndex;
-      const option = this.options[index];
-
       init_form(order_tables[index]);
     };
 
@@ -31,586 +29,249 @@
   }).get_order_tables();
 
 
-  let items = [];
-  let articuls = [];
-  let positions = [];
-  let accounts = [];
-  let pending_order_data = null;
-  let transfer_price_kg = 30; // price per kg/UAH
+document.addEventListener("DOMContentLoaded", function () {
+  const cb0 = document.getElementById("select-all-0");
+  const cb1 = document.getElementById("select-all-1");
 
-  // Load items from Google Sheets
-  google.script.run.withSuccessHandler(function(data) {
-    items = data;
-    articuls = data;
-    document.getElementById("addItemBtn").disabled = false;
-    add_position();   // Add first position automatically
-  }).deserialize_articuls();
-
-  google.script.run.withSuccessHandler(function(data) {
-    accounts = data;
-    addAccaunts();
-  }).deserialize_accounts();
-
-  google.script.run.withSuccessHandler(function(data) {
-    transfer_price_kg = data;
-  }).get_transfer_price();
-
-//----------------------------------------------------------------------------------------------
-  function init_form(table_name) {
-    google.script.run.withSuccessHandler(function(data) {
-      // TODO
-    }).deserialize_orders(table_name);
-  }
-  
-//----------------------------------------------------------------------------------------------
-  function addAccaunts() {
-    const container = document.getElementById('accounts');
-    const select = document.createElement('select');
-    select.id = "payment_select";
-    select.style.width = "100%";   // enlarge width
-    select.style.fontSize = "1.1rem"; 
-    select.style.padding = "8px";
-
-    select.addEventListener("change", function (event) {
-      let tax_rule = get_current_tax_rule();
-      if (tax_rule !== undefined && tax_rule !== null && tax_rule.trim() !== "") {
-        document.getElementById(`tax-formula`).innerText = tax_rule;
-      }else{
-        document.getElementById(`tax-formula`).innerText = "no rule";
-      }
-
-      positions.forEach((p, index) => {
-        on_update_account();
-      });
+  if (cb0) {
+    cb0.addEventListener("change", function () {
+      toggle_all_orders(0, this);
     });
+  }
 
-    // --- Add placeholder ---
-    let placeholder = document.createElement("option");
-    placeholder.value = "";
-    placeholder.disabled = true;
-    placeholder.selected = true;
-    placeholder.textContent = "Оберіть спосіб оплати...";
-    select.appendChild(placeholder);
-
-    accounts.forEach(a => {
-      let opt = document.createElement("option");
-      opt.value = a._name;
-      opt.textContent = a._name;
-
-      if (a._tax_rule != ""){
-        opt.dataset.tax_rule = a._tax_rule;
-      }
-      select.appendChild(opt);
+  if (cb1) {
+    cb1.addEventListener("change", function () {
+      toggle_all_orders(1, this);
     });
-
-    container.appendChild(select);
-    on_update_account();
   }
+});
 
 //----------------------------------------------------------------------------------------------
-// Add a new item position block
-//----------------------------------------------------------------------------------------------
-  function add_position() {
-    const index = positions.length;
-    positions.push({});
+function init_form(table_name) {
+  google.script.run.withSuccessHandler(function(data) {
+    
+    clear_all();
 
-    const div = document.createElement('div');
-    div.className = "position";
-    div.id = "pos_" + index;
+    order_buckets = data;
 
-    div.innerHTML = `
-      <div class="position-header">
-        <label>Артикул</label>
+    for (const [key, obj] of Object.entries(data.open)) {
+      if (!obj || !obj.orders) { continue; }
 
-        <button 
-            class="remove-btn"
-            onclick="removePosition(${index})"
-            title="Remove articul">
+      for (const [orderId, orderArray] of Object.entries(obj.orders)) {
+        add_order_block(key, orderId, orderArray);
+      }
+    }
 
-            <svg width="18" height="18" viewBox="0 0 24 24">
-              <path 
-                d="M18 6L6 18M6 6l12 12"
-                stroke="currentColor"
-                stroke-width="2"
-                stroke-linecap="round"
-              />
-            </svg>
-        </button>
+    for (const [key, obj] of Object.entries(data.cancelled)) {
+      if (!obj || !obj.orders) { continue; }
+      for (const [orderId, orderArray] of Object.entries(obj.orders)) {
+          add_order_cancelled("order-cancelled-bucket-" + key, orderId, orderArray);
+      }
+    }
 
-      </div><br>
+    /*for (order of data.closed){
+      add_order_closed("order-closed", order);
+    }*/
 
-      <select id="item_${index}" onchange="update_position(${index}, 'articul_changed')">
-        ${articuls.map((articul, idx) =>
-          `<option value="${articul._offer_id}"
-            item-idx="${idx}"
-            offer-id="${articul._offer_id}"
-            item-name="${articul._name}"
-            bare-price="${articul._bare_price}"
-            sell-price="${articul._sell_price}"
-            condition="${articul._condition}"
-            weight="${articul._weight}"
-            price-rule='${articul._price_rules ? JSON.stringify(articul._price_rules) : ""}'>
-            [ ${articul._market_name} ]  ${articul._condition} | ${articul._offer_id} | ${articul._bare_price} UAH
-          </option>`
-        ).join('')}
-      </select><br>
-      <label id="pos-condition-${index}" style="font-size: 0.8rem; font-weight: bold;"></label>
-      <br>
-      <br>
-
-      <label>Кількість:</label><br>
-      <input id="count_${index}" type="number" value="1" min="1" step="1" oninput="update_position(${index}, 'count_changed')"><br><br>
-      
-      <label>Ціна одиниці товару:</label><br>      
-      <input 
-        id="input-suggested-price_${index}" 
-        type="number" 
-        step="any" 
-        value="0"
-        min="0"
-        oninput="update_position(${index}, 'price_per_one_changed')" 
-        onkeydown="this.dataset.lastValue=this.value" 
-        onwheel="this.blur()" 
-        onfocusout="normalizeStep(this)"
-      >
-      <br>
-      <label id="item-price-orig_${index}" style="font-size: 0.8rem; font-weight: bold; color: darkred;"></label>
-      <br><br>
-
-      <label>Загальна ціна позиції:</label><br>
-      <input 
-          id="price_${index}" 
-          oninput="update_position(${index}, 'total_price_changed')" 
-          type="number" 
-          step="any" 
-          disabled
-          value="0"
-          onkeydown="this.dataset.lastValue=this.value" 
-          onwheel="this.blur()"
-          onfocusout="normalizeStep(this)"
-          ><br>
-
-      <input 
-        type="checkbox"
-        id="enable_price_${index}"
-        onchange="togglePriceInput(${index})"
-      >
-      <label for="enable_price_${index}">Змінити ціну позиції</label><br>
-      <label id="price_original_${index}" style="font-size: 0.8rem; font-weight: bold; color: darkred;"></label><br><br>
-
-      <label style="font-size: 0.85rem; font-weight: bold;">Прибуток:</label>
-      <label id="pos-profit-${index}" type="number" value="0" style="font-size: 0.85rem; font-weight: bold;" readonly></label><br><br>
- 
-      <label style="font-size: 0.8rem; font-weight: bold; color: darkblue;">в т.ч. Витрати:</label>
-      <label id="tax-amount-${index}" type="number" value="0" style="font-size: 0.8rem; font-weight: bold;" readonly></label>
-      <label type="number" value="0" style="font-size: 0.8rem; font-weight: bold;" readonly>грн.</label><br><br>
-
-      <label style="font-size: 0.8rem; font-weight: bold; color: darkblue;">Залишок:</label>
-      <label id="count-avail-${index}" style="font-size: 0.8rem; font-weight: bold; color: darkblue;"></label><br>
-    `;
-
-    const container = document.getElementById('positions');
-    container.appendChild(div);
-    update_position(index, "articul_changed");
-  }
-
-//----------------------------------------------------------------------------------------------
-function togglePriceInput(index) {
-  const checkbox = document.getElementById(`enable_price_${index}`);
-  const input = document.getElementById(`price_${index}`);
-
-  input.disabled = !checkbox.checked;
-
-  if (checkbox.checked) {
-    input.focus();
-  } else {
-    update_position(index, "total_price_changed");
-  }
+  }).prepare_calculation_info(table_name);
 }
 
 //----------------------------------------------------------------------------------------------
-function on_update_account(){
-  let tax_rule = get_current_tax_rule();
-  if (tax_rule !== undefined && tax_rule !== null && tax_rule.trim() !== "") {
-    document.getElementById(`tax-formula`).innerText = tax_rule;
-  }else{
-    document.getElementById(`tax-formula`).innerText = "no rule";
-  }
+function clear_all()
+{
+  order_buckets = {};
+  checked_orders.clear();
 
-  positions.forEach((p, index) => {
-    if (p !== null) {
-      update_position(index);
+  clear_table_rows('order-bucket-0');
+  clear_table_rows('order-bucket-1');
+  clear_table_rows('order-cancelled-bucket-0');
+  clear_table_rows('order-cancelled-bucket-1');
+  //clear_table_rows('order-closed');
+
+  document.getElementById("select-all-0").checked = false;
+  document.getElementById("select-all-1").checked = false;
+
+  update_summary_table(0);
+  update_summary_table(1);
+}
+
+//----------------------------------------------------------------------------------------------
+function add_order_block(bucket_id, orderId, orderArray) {
+  const table = document.getElementById("order-bucket-" + bucket_id);
+  const tbody = table.tBodies[0];
+
+  const rowspan = orderArray.length;
+
+  orderArray.forEach((row, index) => {
+    const tr = tbody.insertRow();
+    
+    if (index === 0) {
+      // Checkbox cell with rowspan
+      const tdCheckbox = tr.insertCell();
+      tdCheckbox.className = "checkbox-cell";
+      tdCheckbox.rowSpan = rowspan;
+
+      const checkbox = document.createElement("input");
+      checkbox.type = "checkbox";
+      checkbox.dataset.orderId = orderId;
+      checkbox.dataset.bucketId = bucket_id;
+      checkbox.dataset.rowspan = rowspan;
+
+      checkbox.addEventListener("change", function () {
+        if (this.checked){
+          checked_orders.add(orderId);
+        } else {
+          checked_orders.delete(orderId);
+        }
+        highlight_order_rows(tr, rowspan, this.checked);
+
+        recalculate_bucket(Number(bucket_id));
+      });
+
+      tdCheckbox.appendChild(checkbox);
+
+      // Order ID cell with rowspan
+      const tdOrderId = tr.insertCell();
+      tdOrderId.className = "order-id-cell";
+      tdOrderId.rowSpan = rowspan;
+      tdOrderId.textContent = orderId;
     }
+
+    // Suborder cells (account, total, base, profit)
+    const tdAccount = tr.insertCell();
+    tdAccount.textContent = row.account;
+
+    const tdTotal = tr.insertCell();
+    tdTotal.textContent = Number(row.total).toFixed(2);
+
+    const tdBase = tr.insertCell();
+    tdBase.textContent = Number(row.base).toFixed(2);
+
+    const tdProfit = tr.insertCell();
+    tdProfit.textContent = Number(row.profit).toFixed(2);
   });
 }
 
 //----------------------------------------------------------------------------------------------
-  function update_position(index, mask = "") {
-    switch (mask) {
-    case "articul_changed":
-      reset_articul_default(index);
-      // fall through intentionally
+function add_order_cancelled(tableId, orderId, orderArray) {
+  const table = document.getElementById(tableId);
+  const tbody = table.tBodies[0];
 
-    case "count_changed":
-      update_counts(index);
+  const rowspan = orderArray.length;
 
-    case "price_per_one_changed":{
-      const default_price = getDefaultItemPrice(index);
-      const new_item_price = document.getElementById(`input-suggested-price_${index}`).value;
+  orderArray.forEach((row, index) => {
+    const tr = tbody.insertRow();
+    
+    if (index === 0) {
+      // Order ID cell with rowspan
+      const tdOrderId = tr.insertCell();
+      tdOrderId.className = "order-id-cell";
+      tdOrderId.rowSpan = rowspan;
+      tdOrderId.textContent = orderId;
+    }
 
-      if (default_price != new_item_price){
-        document.getElementById(`item-price-orig_${index}`).innerText = " ціну за одиницю змінено:" + String(default_price) + " грн.";
-      } else {
-        document.getElementById(`item-price-orig_${index}`).innerText = "";
-      }
-      recalculatePosition(index);
-    }// fall through intentionally
+    // Suborder cells (account, total)
+    const tdAccount = tr.insertCell();
+    tdAccount.textContent = row.account;
 
-    case "total_price_changed":{
-      const checkbox = document.getElementById(`enable_price_${index}`);
-      if (!checkbox.checked){
-        recalculatePosition(index);
-      }
-    }break;
-  }
-
-  const sel = document.getElementById(`item_${index}`);
-  const barePrice = parseFloat(sel.options[sel.selectedIndex].getAttribute("bare-price"));
-
-  const total = getDefaultPositionPrice(index);
-  const new_total = document.getElementById(`price_${index}`).value;
-
-  if (total != new_total){
-    document.getElementById(`price_original_${index}`).innerText = " ціну змінено: " + total.toFixed(2) + " грн.";
-  } else {
-    document.getElementById(`price_original_${index}`).innerText = "";
-  }
-
-  recalculateProfit(index);
-  updatePositionTax(index);
-  updateTotalOrder();
+    const tdTotal = tr.insertCell();
+    tdTotal.textContent = Number(row.total).toFixed(2);
+  });
 }
 
 //----------------------------------------------------------------------------------------------
-function reset_articul_default(index){
-  document.getElementById(`count_${index}`).value = 1;
+function add_order_closed(tableId, order) {
+  const table = document.getElementById(tableId);
+  const tbody = table.tBodies[0];
 
-  document.getElementById(`item-price-orig_${index}`).innerText = "";
-  document.getElementById(`price_original_${index}`).innerText = "";
-
-  const default_price = getDefaultItemPrice(index);
-
-  let elSuggestedPrc = document.getElementById(`input-suggested-price_${index}`);
-  elSuggestedPrc.value = parseFloat(default_price);
-
-  let price_per_unit = parseFloat(elSuggestedPrc.value);
-
-  const sel = document.getElementById(`item_${index}`);
-  const barePrice = parseFloat(sel.options[sel.selectedIndex].getAttribute("bare-price")); // price without profit
-
-  const pos_price = document.getElementById(`price_${index}`);
-  pos_price.value = price_per_unit.toFixed(4);
-
-  const condition = sel.options[sel.selectedIndex].getAttribute("condition");
-  document.getElementById(`pos-condition-${index}`).innerText = condition;
-}
-
-  //----------------------------------------------------------------------------------------------
-  function get_current_tax_rule(){
-    const account_select = document.getElementById("payment_select");
-    const selectedOption = account_select.options[account_select.selectedIndex];
-
-    return selectedOption?.dataset?.tax_rule;
-  }
-
-  //----------------------------------------------------------------------------------------------
-  function calculateCurrentTax(context){
-    let result_tax = 0;
-    const tax_rule = get_current_tax_rule();
-
-    if (tax_rule !== undefined && tax_rule !== null && tax_rule.trim() !== "") {
-      const tax_rule_str = evalFormula(tax_rule, context);
-      const rule_obj = JSON.parse(tax_rule_str);
-      result_tax = Function(`"use strict"; return (${rule_obj.tax});`)();
-    }
-    return result_tax;
-  }
-
-  //----------------------------------------------------------------------------------------------
-  function recalculatePosition(index) {
-    const count = Number(document.getElementById(`count_${index}`).value);
-
-    let elSuggestedPrc = document.getElementById(`input-suggested-price_${index}`);
-    let price_per_unit = parseFloat(elSuggestedPrc.value);
-
-    const sel = document.getElementById(`item_${index}`);
-    const barePrice = parseFloat(sel.options[sel.selectedIndex].getAttribute("bare-price")); // price without profit
-
-    const total = price_per_unit * count;
-    document.getElementById(`price_${index}`).value = total.toFixed(4);
-  }
-
-  //----------------------------------------------------------------------------------------------
-  function recalculateProfit(index){
-    const count = Number(document.getElementById(`count_${index}`).value);
-    const total = document.getElementById(`price_${index}`).value;
-
-    const sel = document.getElementById(`item_${index}`);
-    const bare_price = parseFloat(sel.options[sel.selectedIndex].getAttribute("bare-price")); // price without profit
-
-    const profit = total - (count * bare_price);
-
-    let elProfitPrice = document.getElementById(`pos-profit-${index}`)
-    elProfitPrice.innerText = profit.toFixed(2) + " грн.";
-    elProfitPrice.setAttribute('pos-profit', profit.toFixed(4));
-  }
-
-  //----------------------------------------------------------------------------------------------
-  function update_counts(index) {
-    const default_price = getDefaultItemPrice(index);
-
-    //document.getElementById(`item-price-orig_${index}`).innerText = "";
-    //document.getElementById(`price_original_${index}`).innerText = "";
-
-    let elSuggestedPrc = document.getElementById(`input-suggested-price_${index}`);
-    elSuggestedPrc.value = parseFloat(default_price);
-
-    const map_offer_id_count = new Map();
-
-    items.forEach(it => {
-      map_offer_id_count[it._offer_id] = it._count;
-    });
-
-    positions.forEach((p, index) => {
-        if (p !== null) {          
-          const sel = document.getElementById("item_" + index);
-          if (!sel) { return }; // not present in DOM
-          const opt = sel.options[sel.selectedIndex];
-          let item_idx = Number(opt.getAttribute('item-idx'));
-          let offer_id = Number(opt.getAttribute('offer-id'));
-
-          if (isNaN(item_idx) || isNaN(offer_id)) { return; }
-
-          let order_count = Number(document.getElementById("count_" + index).value) || 0;
-          map_offer_id_count[offer_id] -= order_count;
-        }
-    });
-
-    positions.forEach((p, index) => {
-        if (p !== null) {          
-          const sel = document.getElementById("item_" + index);
-          if (!sel) { return }; // not present in DOM
-          const opt = sel.options[sel.selectedIndex];
-          let item_idx = Number(opt.getAttribute('item-idx'));
-          let offer_id = Number(opt.getAttribute('offer-id'));
-
-          if (isNaN(item_idx) || isNaN(offer_id)) { return; }
-
-          document.getElementById("count-avail-" + index).innerText = String(map_offer_id_count[offer_id]) + " шт.";
-        }
-    });
-  }
-
-//----------------------------------------------------------------------------------------------
-  function updateProfit(index) {
-    const sel = document.getElementById(`item_${index}`);
-    const count = Number(document.getElementById(`count_${index}`).value);
-    const barePrice = parseFloat(sel.options[sel.selectedIndex].getAttribute("bare-price"));
-
-    const new_total = document.getElementById(`price_${index}`).value;
-    const profit = new_total - (count * barePrice);
-
-    let elProfitPrice = document.getElementById(`pos-profit-${index}`);
-    elProfitPrice.innerText = profit.toFixed(2) + " грн.";
-    elProfitPrice.setAttribute('pos-profit', profit);
-  }
-
-//----------------------------------------------------------------------------------------------
-  function updatePositionTax(index){
-    const sel = document.getElementById(`item_${index}`);
-    const weight = parseFloat(sel.options[sel.selectedIndex].getAttribute("weight"));
-    const count = Number(document.getElementById(`count_${index}`).value);
-    const total = document.getElementById(`price_${index}`).value;
-
-    const context = {
-        WEIGHT_KG: weight * count,
-        TRANSFER_PRICE_KG: transfer_price_kg,
-        FULL_PRICE: total
-    };
-    const tax_amount = calculateCurrentTax(context);
-    document.getElementById(`tax-amount-${index}`).innerText = tax_amount.toFixed(2);
-  }
-
-//----------------------------------------------------------------------------------------------
-  function getPositionCount(index) { 
-    const count = Number(document.getElementById(`count_${index}`).value);
-    return count;
-  }
-
-//----------------------------------------------------------------------------------------------
-  function getDefaultItemPrice(index) {
+  const tr = tbody.insertRow();
     
-    const count = Number(document.getElementById(`count_${index}`).value);
-    const sel = document.getElementById(`item_${index}`);
-    const sellPrice = parseFloat(sel.options[sel.selectedIndex].getAttribute("sell-price"));
-    const ruleRaw = sel.options[sel.selectedIndex].getAttribute("price-rule");
-    
-    let pricePerUnit = sellPrice;
-    
-    if (ruleRaw) {
-      try {
-        const rule = JSON.parse(ruleRaw);
-
-        pricePerUnit = calcByRule(count, rule, sellPrice);
-      } catch (e) {
-        console.error("[getDefaultItemPrice] error price calculation");
-      }
-    }
-
-    return pricePerUnit;
-  }
-
-//----------------------------------------------------------------------------------------------
-  function getDefaultPositionPrice(index) {
-    return getDefaultItemPrice(index) * getPositionCount(index);
-  }
-
-//----------------------------------------------------------------------------------------------
-// Price rule calculator
-//----------------------------------------------------------------------------------------------
-  function calcByRule(count, rule, defaultPrice) {
-    for (let r of rule) {
-      if (count >= r.min && count < r.max) return r.price;
-    }
-    return defaultPrice;
-  }
-
-//----------------------------------------------------------------------------------------------
-// Update TOTAL order price
-//----------------------------------------------------------------------------------------------
-  function updateTotalOrder() {
-    let total = 0;
-    positions.forEach((p, index) => {
-      if (p !== null) {
-        const v = parseFloat(document.getElementById(`price_${index}`).value);
-        total += v;
-      }
-    });
-    document.getElementById("order_total").innerText = total + " грн";
-  }
-
-//----------------------------------------------------------------------------------------------
-// Remove position block
-//----------------------------------------------------------------------------------------------
-  function removePosition(index) {
-    document.getElementById("pos_" + index).remove();
-    positions[index] = null;
-    updateTotalOrder();
-    update_counts(index);
-  }
-
-//----------------------------------------------------------------------------------------------
-// Reset form
-//----------------------------------------------------------------------------------------------
-function reset_form() {
-  document.getElementById('client-info').value = "";
-  document.getElementById('notes').value = "";
-  document.getElementById('positions').innerHTML = "";
-  positions = [];
-  pending_order_data = null;
+  // Suborder cells (account, total)
+  const td = tr.insertCell();
+  td.textContent = order;
 }
 
 //----------------------------------------------------------------------------------------------
-// Submit order with Confirmation to Google Sheets
+function clear_table_rows(table_id) {
+  const table = document.getElementById(table_id);
+  if (!table) return;
+  table.tBodies[0].innerHTML = "";
+}
+
 //----------------------------------------------------------------------------------------------
-function submitOrderConfirm() {
-  const final_positions = [];
-  let total_price = 0;
+function highlight_order_rows(startRow, rowspan, checked) {
+  let row = startRow;
 
-  const payment_method = document.getElementById("payment_select");
-  if (!payment_method.value) {
-    alert("Будь ласка, оберіть спосіб оплати.");
-    return;
-  }
-
-  const client_info = document.getElementById('client-info');
-
-  const container = document.getElementById('confirm-container');
-  container.replaceChildren();
-
-  const div_head = document.createElement('div');
-  div_head.innerHTML = `
-  <h4> ПОЗИЦІЇ </h4>
-  <label style="font-size: 1.2rem;"> Оплата: </label><br>
-  <label style="font-size: 1.2rem; font-weight: bold;"> ${payment_method.value} </label><br><br>
-  <label style="font-size: 1.2rem;"> Клієнт: </label><br>
-  <label style="font-size: 1.2rem; font-weight: bold;"> ${client_info.value}</label>
-  `;
-  container.appendChild(div_head);
-
-  positions.forEach((p, index) => {
-    if (p !== null) {
-      const sel = document.getElementById(`item_${index}`);
-      if (!sel) return;
-
-      let item_name = sel.options[sel.selectedIndex].getAttribute("item-name");
-      let bare_price = sel.options[sel.selectedIndex].getAttribute("bare-price");
-      let condition = sel.options[sel.selectedIndex].getAttribute("condition");
-
-      const count = Number(document.getElementById(`count_${index}`).value);
-      const profit = Number(document.getElementById(`pos-profit-${index}`).getAttribute("pos-profit"));
-
-      const price_per_one = Number(document.getElementById(`input-suggested-price_${index}`).value);
-      const tax = Number(document.getElementById(`tax-amount-${index}`).textContent);
-      const pos_price = Number(document.getElementById(`price_${index}`).value);
-
-      const combined_name = item_name + ' (' + condition + ')';
-
-      final_positions.push({
-        offer_id: sel.value,
-        item_name: combined_name,
-        count: count,
-        bare_price: bare_price,
-        profit: profit,
-        tax: tax,
-        pos_price: pos_price,
-      });
-
-      const div = document.createElement('div');
-
-      div.innerHTML = `
-      <hr>
-      <label>Артикул:   ${combined_name} </label><br>
-      <label>Кількість: ${count} шт.</label><br>
-      <label>Ціна одиниці.: ${price_per_one} грн.</label><br>
-      <label>Прибуток.: ${profit} грн.</label><br>
-      <label>Витрати: ${tax} грн.</label><br>
-      <label>Ціна загальна.: ${pos_price} грн.</label><br>
-      `;
-
-      container.appendChild(div);
-      total_price += pos_price;
+  for (let i = 0; i < rowspan; i++) {
+    if (checked) {
+      row.classList.add("highlighted");
+    } else {
+      row.classList.remove("highlighted");
     }
+    row = row.nextElementSibling;
+  }
+}
+
+//----------------------------------------------------------------------------------------------
+function toggle_all_orders(bucket_id, headerCheckbox) {
+  const table = document.getElementById("order-bucket-" + bucket_id);
+  const checkboxes = table.querySelectorAll("tbody input[type='checkbox']");
+
+  checkboxes.forEach(cb => {
+    cb.checked = headerCheckbox.checked;
+
+    const orderId = cb.dataset.orderId;
+
+    if (headerCheckbox.checked) {
+      checked_orders.add(orderId);
+    } else {
+      checked_orders.delete(orderId);
+    }
+    const tr = cb.closest("tr");
+    const rowspan = Number(cb.dataset.rowspan) || 1;
+
+    highlight_order_rows(tr, rowspan, headerCheckbox.checked);
   });
 
-  if (final_positions.length === 0) {
-    alert("Додайте позиції в замовлення.");
+  recalculate_bucket(bucket_id);
+}
+
+//----------------------------------------------------------------------------------------------
+function recalculate_bucket(bucket_id)
+{
+  const bucket = order_buckets.open[bucket_id];
+  if (!bucket || !bucket.orders) {
     return;
   }
 
-  // Save for confirmation step
-  pending_order_data = {
-    client_info: client_info.value,
-    payment: payment_method.value,
-    notes: document.getElementById('notes').value,
-    total_price: total_price,
-    positions: final_positions
-  };
+  let total = 0;
+  let base = 0;
+  let profit = 0;
 
-  document.getElementById("confirm-container-bottom").innerText = `Загальна сума:\n ${total_price} грн.`;
+  // Loop over all orders in this bucket
+  for (const [orderId, orderArray] of Object.entries(bucket.orders)) {
+    if (!checked_orders.has(orderId)) continue; // only sum checked orders
 
-  document.getElementById("confirmModal").style.display = "block";
-  document.body.classList.add("modal-open");
+    for (const row of orderArray) {
+      total += parseFloat(row.total) || 0;
+      base += parseFloat(row.base) || 0;
+      profit += parseFloat(row.profit) || 0;
+    }
+  }
+
+  update_summary_table(bucket_id, total, base, profit);
+}
+
+//----------------------------------------------------------------------------------------------
+function update_summary_table(bucket_id, total = 0, base = 0, profit = 0)
+{
+  const totalCell = document.getElementById("total_bucket_" + bucket_id);
+  const baseCell = document.getElementById("base_bucket_" + bucket_id);
+  const profitCell = document.getElementById("profit_bucket_" + bucket_id);
+
+  if (totalCell) totalCell.textContent = total.toFixed(2) + " грн";
+  if (baseCell) baseCell.textContent = base.toFixed(2) + " грн";
+  if (profitCell) profitCell.textContent = profit.toFixed(2) + " грн";
 }
 
 //----------------------------------------------------------------------------------------------
@@ -656,190 +317,125 @@ function confirm_submit() {
     confirmBtn.innerText = "Підтвердити";
   }).add_order('Orders_v2', pending_order_data);
 }
-
-//----------------------------------------------------------------------------------------------
-function normalizeStep(input) {
-  // Round to nearest integer if changed via spinner
-  const parsed = parseFloat(input.value);
-  if (!isNaN(parsed)) {
-    const lastValue = parseFloat(input.dataset.lastValue);
-    if (Number.isInteger(parsed)) {
-      input.value = parsed; // spinner used → integer
-    } else {
-      input.value = parsed; // typed decimal → keep as is
-    }
-  }
-}
-
-//----------------------------------------------------------------------------------------------
-// Evaluate formula
-//----------------------------------------------------------------------------------------------
-function evalFormula(str, context) {
-  let expr = str;
-
-  const hasVar = /\$\(|\$\{[^}]+\}/.test(str);
-  const hasMathFunc = /\b(?:ceil|floor|round|min|max|abs|round5|ceil5)\b/.test(str);
-  const hasTernary = /\?/.test(str);
-  const hasCompare = /(>=|<=|==|>|<)/.test(str);
-  const startsWithIf = /^\s*if\s*\(/.test(str);
-
-  const isExpression = hasVar && (hasMathFunc || hasTernary || hasCompare || startsWithIf);
-
-  // =====================================================
-  // STRING MODE (template replacement only)
-  // =====================================================
-  if (!isExpression) {
-    const fullMatch = str.match(/^\$\{([^}:]+)(?::(number|int|float|string))?\}$/);
-
-    // Case: string is ONLY a single template → return typed value
-    if (fullMatch) {
-      const [, name, type] = fullMatch;
-
-      if (context[name] === undefined) {
-        throw new Error(`Unknown variable ${name}`);
-      }
-
-      let val = context[name];
-
-      switch (type) {
-        case "number":
-        case "float":
-          val = Number(val);
-          if (Number.isNaN(val)) throw new Error(`Variable ${name} is not a number`);
-          return val;
-
-        case "int":
-          val = parseInt(val, 10);
-          if (Number.isNaN(val)) throw new Error(`Variable ${name} is not an int`);
-          return val;
-
-        case "string":
-          return String(val);
-
-        default:
-          return val;
-      }
-    }
-
-    // Otherwise, it's part of a larger string → keep string behavior
-    return str.replace(/\$\{([^}:]+)(?::(number|int|float|string))?\}/g, (_, name) => {
-      if (context[name] === undefined) {
-        throw new Error(`Unknown variable ${name}`);
-      }
-      return context[name];
-    });
-  }
-
-  // =====================================================
-  // EXPRESSION MODE
-  // =====================================================
-
-  // $(VAR[:type]) → typed JS literal
-  expr = expr.replace(/\$\(([^):]+)(?::(number|int|float|string))?\)/g, (_, name, type) => {
-    if (context[name] === undefined) {
-      throw new Error(`Unknown variable ${name}`);
-    }
-
-    let val = context[name];
-
-    switch (type) {
-      case "number":
-      case "float":
-        val = Number(val);
-        if (Number.isNaN(val)) throw new Error(`Variable ${name} is not a number`);
-        return val;
-
-      case "int":
-        val = parseInt(val, 10);
-        if (Number.isNaN(val)) throw new Error(`Variable ${name} is not an int`);
-        return val;
-
-      case "string":
-        return JSON.stringify(String(val));
-
-      default:
-        if (typeof val === "number") return val;
-        if (!isNaN(val) && val !== "") return Number(val);
-        return JSON.stringify(val);
-    }
-  });
-
-  // ${VAR[:type]} inside expression → always JS literal
-  expr = expr.replace(/\$\{([^}:]+)(?::(number|int|float|string))?\}/g, (_, name, type) => {
-    if (context[name] === undefined) {
-      throw new Error(`Unknown variable ${name}`);
-    }
-
-    let val = context[name];
-
-    switch (type) {
-      case "number":
-      case "float":
-        val = Number(val);
-        if (Number.isNaN(val)) throw new Error(`Variable ${name} is not a number`);
-        return val;
-
-      case "int":
-        val = parseInt(val, 10);
-        if (Number.isNaN(val)) throw new Error(`Variable ${name} is not an int`);
-        return val;
-
-      case "string":
-        return JSON.stringify(String(val));
-
-      default:
-        return JSON.stringify(val);
-    }
-  });
-
-  // normalize "if (cond) ? a : b"
-  expr = expr.replace(/^if\s*\(/, '(');
-
-  try {
-    const helpers = {
-      ceil: Math.ceil,
-      floor: Math.floor,
-      round: Math.round,
-      min: Math.min,
-      max: Math.max,
-      abs: Math.abs,
-      round5: (v) => Math.round(v / 5) * 5,
-      ceil5: (v) => Math.ceil(v / 5) * 5
-    };
-
-    const fn = new Function(...Object.keys(helpers), `return ${expr};`);
-    return fn(...Object.values(helpers));
-
-  } catch (e) {
-    console.error("Formula error:", expr, e);
-    return str;
-  }
-}
 </script>
 
-  <h2>Orders calculator</h2>
-
+  <h3>Order table:</h3>
   <select id="order-table"></select><br>
 
-  <label>Дані покупця</label><br>
-  <textarea id="client-info" style="width:100%; height:90px; resize:vertical;"></textarea><br><br>
-  
-  <label>Примітка</label><br>
-  <input id="notes" type="text" style="width:100%"><br><br>
+  <div class="position">
+    <h3>Bucket #0:</h3>
+    <table id="order-bucket-0">
+      <thead>
+        <tr>
+          <th><input type="checkbox" id="select-all-0"></th>
+          <th>Order ID</th>
+          <th>Account</th>
+          <th>Total</th>
+          <th>Base</th>
+          <th>Profit</th>
+        </tr>
+      </thead>
+      <tbody></tbody>
+    </table><br>
+    <!-- summary table -->
+    <div class="summary-table-container">
+      <table class="summary-table">
+        <tbody>
+          <tr>
+            <td class="summary-label">Total</td>
+            <td id="total_bucket_0" class="summary-value">0 грн</td>
+          </tr>
+          <tr>
+            <td class="summary-label">Base</td>
+            <td id="base_bucket_0" class="summary-value">0 грн</td>
+          </tr>
+          <tr>
+            <td class="summary-label">Profit</td>
+            <td id="profit_bucket_0" class="summary-value">0 грн</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
 
-  <label>Оплата</label><br>
-  <div id="accounts"></div>
-  <h5>Tax:<br><span id="tax-formula"></span></h5>
+  </div>
 
-  <h3>Позиції:</h3>
-  <div id="positions"></div>
+  <div class="position">
+    <h3>Bucket #1:</h3>
+    <table id="order-bucket-1">
+      <thead>
+        <tr>
+          <th><input type="checkbox" id="select-all-1"></th>
+          <th>Order ID</th>
+          <th>Account</th>
+          <th>Total</th>
+          <th>Base</th>
+          <th>Profit</th>
+        </tr>
+      </thead>
+      <tbody></tbody>  
+    </table><br>
 
-  <button id="addItemBtn" onclick="add_position()" disabled>+ Add Item</button>
+    <!-- summary table -->
+    <div class="summary-table-container">
+      <table class="summary-table">
+        <tbody>
+          <tr>
+            <td class="summary-label">Total</td>
+            <td id="total_bucket_1" class="summary-value">0 грн</td>
+          </tr>
+          <tr>
+            <td class="summary-label">Base</td>
+            <td id="base_bucket_1" class="summary-value">0 грн</td>
+          </tr>
+          <tr>
+            <td class="summary-label">Profit</td>
+            <td id="profit_bucket_1" class="summary-value">0 грн</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
 
-  <h3>Загальна ціна замовлення: <br><span id="order_total">0 грн</span></h3>
+  </div>
 
-  <br>
-  <button id="submitOrderBtn" onclick="submitOrderConfirm()">Submit Order</button>
+  <div class="button-row">
+    <button id="submitOrderBtn" onclick="submitOrderConfirm()">Next</button>
+  </div>
+
+  <h3>Cancelled:</h3>
+  <h3>Bucket #0:</h3>
+  <table id="order-cancelled-bucket-0">
+    <thead>
+      <tr>
+        <th>Order ID</th>
+        <th>Account</th>
+        <th>Total</th>
+      </tr>
+    </thead>
+    <tbody></tbody>
+  </table><br>
+
+  <h3>Bucket #1:</h3>
+  <table id="order-cancelled-bucket-1">
+    <thead>
+      <tr>
+        <th>Order ID</th>
+        <th>Account</th>
+        <th>Total</th>
+      </tr>
+    </thead>
+    <tbody></tbody>
+  </table><br>
+
+<!--
+  <h3>Closed:</h3>
+  <table id="order-closed">
+    <thead>
+      <tr>
+        <th>Order ID</th>
+      </tr>
+    </thead>
+    <tbody></tbody>
+  </table><br> -->
 
   <!-- ===================== CONFIRMATION MODAL ===================== -->
   <div id="confirmModal" class="modal">

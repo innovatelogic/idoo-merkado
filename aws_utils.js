@@ -27,6 +27,7 @@ function getSignatureKey(secretKey, dateStamp, regionName, serviceName) {
   return kSigning;
 }
 
+//----------------------------------------------------------------------------------------------
 function getSecrets() {
   const props = PropertiesService.getScriptProperties();
   
@@ -36,6 +37,7 @@ function getSecrets() {
     AWS_REGION: props.getProperty('AWS_REGION'),
     AWS_SERVICE: props.getProperty('AWS_SERVICE'),
     AWS_BUCKET : props.getProperty('AWS_BUCKET'),
+    SCRIPT_ID : props.getProperty('SCRIPT_ID')
   };
 }
 

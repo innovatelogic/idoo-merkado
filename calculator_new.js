@@ -4,19 +4,61 @@ function show_calculation_form_new()
   // Pass JSON to HTML
   const html = HtmlService.createTemplateFromFile("order_processor");
 
-  const output = html.evaluate().setWidth(600).setHeight(800);
+  const output = html.evaluate().setWidth(1200).setHeight(800);
   SpreadsheetApp.getUi().showModalDialog(output, "Order Calculation");
 }
 
 function get_order_tables() { return ["Orders_v2", "Orders New"]; }
+
 //----------------------------------------------------------------------------------------------
 // Prepare calculation info
 //----------------------------------------------------------------------------------------------
 function prepare_calculation_info(table_name = "Orders_v2") {
+
   const all_orders = deserialize_orders(table_name);
   const closed_orders = get_processed_orders();
 
-  
+  //console.log(all_orders);
+  //console.log(closed_orders);
+
+  const canseled_buckets = new Map();
+
+  // --- Remove matching orders from backets ---
+  for (const [key, obj] of all_orders.entries()) {
+    if (!obj || !obj.orders) continue;
+
+    // orders is OBJECT { orderId: [rows] }
+    if (typeof obj.orders === "object" && !Array.isArray(obj.orders)) {
+      for (const orderId of Object.keys(obj.orders)) {
+
+        const orderArray = obj.orders[orderId]; // this is an array of elements
+        const hasCanceled = orderArray.some(el => (el.status || "").trim() === "Відмінено");
+
+        if (hasCanceled){
+          if (!canseled_buckets.has(key)){
+            canseled_buckets.set(key, {orders: {}});
+          }
+
+          const bucket = canseled_buckets.get(key);
+          bucket.orders[orderId] = orderArray;
+          
+          delete obj.orders[orderId];
+          continue;
+        }
+
+        if (closed_orders.has(orderId)) {
+          delete obj.orders[orderId];
+          continue;
+        }
+      }
+    }
+  }
+
+  return {
+          open: Object.fromEntries(all_orders),
+          cancelled: Object.fromEntries(canseled_buckets),
+          closed: Array.from(closed_orders)
+        };
 }
 
 //----------------------------------------------------------------------------------------------
@@ -59,7 +101,6 @@ function deserialize_orders(table_name = "Orders_v2")
 
     const order_id = row[headers['ID']];
     if (!order_id) {
-      console.log("skip");
       return;
     }
 
@@ -163,7 +204,3 @@ function get_processed_orders(table_name = "Processing") {
 
   return processed;
 }
-
-
-
-
