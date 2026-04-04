@@ -3,10 +3,9 @@
 //----------------------------------------------------------------------------------------------
 function onOpen() {
   SpreadsheetApp.getUi()
-    .createMenu('🔋 XBat Shop')
+    .createMenu(get_config_value('.shortName'))
     .addItem('Створити', 'show_order_form')
-    .addItem('Розрахувати', 'showCalculationForm')
-    .addItem('Розрахувати (new)', 'show_calculation_form_new')
+    .addItem('Розрахувати', 'show_calculation_form_new')
     .addItem('Export all', 'export_all')
     .addToUi();
 }

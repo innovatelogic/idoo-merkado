@@ -96,55 +96,6 @@ function RemoveAlreadyCalculatedOrders(backets) {
 }
 
 //----------------------------------------------------------------------------------------------
-//
-//----------------------------------------------------------------------------------------------
-function onCalculationConfirmed(backets){
-
-  if (backets === null){
-    throw new Error("[onCalculationConfirmed] invalid input data");
-  }
-
-  const ss = SpreadsheetApp.getActiveSpreadsheet();
-  const sh = ss.getSheetByName("Processing");
-  if (!sh) { 
-    throw new Error("Sheet 'Processing' not found");
-  }
-
-   // If backets is a string, try to parse it. If it's already an object, keep it.
-  //const data = JSON.stringify(backets);
-
-  // Remove filter if it exists
-  const filter = sh.getFilter();
-  if (filter) filter.remove();
-
-  const timestamp = new Date();
-
-  for (const backetKey in backets) {
-    const backet = backets[backetKey];
-
-    let orders_list = "";
-    for (const orderId in backet.orders) {
-      orders_list += orderId + ",\n";
-    }
-
-    const row_values = [
-      timestamp,
-      orders_list,
-      backet.accounts.join(",\n"),
-      backet.total,
-      backet.base,
-      backet.profit,
-      backet.profit/2,
-      'Створено'
-    ];
-
-    sh.appendRow(row_values);
-  }
-
-  return `Calculation ${backets} added successfully!`;
-}
-
-//----------------------------------------------------------------------------------------------
 // Prepare calculation info
 //----------------------------------------------------------------------------------------------
 function PrepareCalculationInfo() {
@@ -279,50 +230,3 @@ function PrepareCalculationInfo() {
   return {new_backets, removed_orders};
 }
 
-//----------------------------------------------------------------------------------------------
-// Prepare calculation info
-//----------------------------------------------------------------------------------------------
-function onCompleteCalculateOperation(backets) {
-  if (!backets || typeof backets !== "object") {
-    throw new Error("[onCompleteCalculateOperation] invalid input data");
-  }
-
-  const ss = SpreadsheetApp.getActiveSpreadsheet();
-  const sh = ss.getSheetByName("Orders New");
-  if (!sh) throw new Error("Sheet 'Orders New' not found");
-
-  const filter = sh.getFilter();
-  if (filter) filter.remove();
-
-  const lastRow = sh.getLastRow();
-  if (lastRow < 2) return "No orders to update";
-
-  // Read order IDs
-  const orderIds = sh.getRange(2, 2, lastRow - 1, 1).getValues(); // col B
-
-  // Collect orders to process
-  const ordersToProcess = new Set();
-  for (const backetKey in backets) {
-    const backet = backets[backetKey];
-    if (!backet.orders) continue;
-
-    for (const orderId in backet.orders) {
-      ordersToProcess.add(orderId);
-    }
-  }
-
-  let updatedCount = 0;
-
-  for (let i = 0; i < orderIds.length; i++) {
-    const orderId = orderIds[i][0];
-
-    if (!orderId) continue; // skip spacer / empty rows
-
-    if (ordersToProcess.has(orderId)) {
-      sh.getRange(i + 2, 10).setValue("Розраховано"); // col J
-      updatedCount++;
-    }
-  }
-
-  return `Processed ${updatedCount} order rows`;
-}

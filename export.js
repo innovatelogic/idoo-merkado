@@ -102,10 +102,9 @@ function export_rozetka_articuls()
 
   const currencies = XmlService.createElement('currencies');
 
-
   const currency_ua = XmlService.createElement('currency')
                                 .setAttribute("id", "UAH")
-                                .setAttribute("rate", "1");
+                                .setAttribute("rate", get_currency_rate("UAH", "UAH"));
   currencies.addContent(currency_ua);
 
   const currency_map = get_currency();
@@ -113,13 +112,13 @@ function export_rozetka_articuls()
   {
     const currency_usd = XmlService.createElement('currency')
                                 .setAttribute("id", "USD")
-                                .setAttribute("rate", currency_map['USD']);
+                                .setAttribute("rate", get_currency_rate("UAH", "USD"));
     currencies.addContent(currency_usd);
   }
   {
     const currency_eur = XmlService.createElement('currency')
                                 .setAttribute("id", "EUR")
-                                .setAttribute("rate", currency_map['EUR']);
+                                .setAttribute("rate", get_currency_rate("UAH", "EUR"));
     currencies.addContent(currency_eur);
   }
 
@@ -131,8 +130,8 @@ function export_rozetka_articuls()
   
   {
     const root_category = XmlService.createElement('category')
-                            .setAttribute('id', 136075826)
-                            .setText("Акумутятори, елементи живлення, контроллери, аксесуари");
+                            .setAttribute('id', 654239)
+                            .setText("Акумулятори та батарейки");
 
     categories.addContent(root_category);
   }

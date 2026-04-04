@@ -79,7 +79,7 @@ function deserialize_orders(table_name = "Orders_v2")
   for (const [key, old_val] of buckets.entries()) {
     buckets.set(key, {
       accounts: old_val,  // assumed array
-      orders: {},          // object: order_id -> array of rows
+      orders: {},         // object: order_id -> array of rows
     });
   }
 
@@ -203,4 +203,107 @@ function get_processed_orders(table_name = "Processing") {
   });
 
   return processed;
+}
+
+//----------------------------------------------------------------------------------------------
+//
+//----------------------------------------------------------------------------------------------
+function onCalculationConfirmed(backets){
+
+  if (backets === null){
+    throw new Error("[onCalculationConfirmed] invalid input data");
+  }
+
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sh = ss.getSheetByName("Processing");
+  if (!sh) { 
+    throw new Error("Sheet 'Processing' not found");
+  }
+
+   // If backets is a string, try to parse it. If it's already an object, keep it.
+  //const data = JSON.stringify(backets);
+
+  // Remove filter if it exists
+  const filter = sh.getFilter();
+  if (filter) filter.remove();
+
+  const timestamp = new Date();
+
+  for (const backetKey in backets) {
+    const backet = backets[backetKey];
+
+    let orders_list = "";
+    for (const orderId in backet.orders) {
+      orders_list += orderId + ",\n";
+    }
+
+    const row_values = [
+      timestamp,
+      orders_list,
+      backet.accounts.join(",\n"),
+      backet.total,
+      backet.base,
+      backet.profit,
+      backet.profit/2,
+      'Створено'
+    ];
+
+    sh.appendRow(row_values);
+  }
+
+  return "Calculation added successfully!";
+}
+
+//----------------------------------------------------------------------------------------------
+// Prepare calculation info
+//----------------------------------------------------------------------------------------------
+function onCompleteCalculateOperation(backets, table_name = "Orders New") {
+  if (!backets || typeof backets !== "object") {
+    throw new Error("[onCompleteCalculateOperation] invalid input data");
+  }
+
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sh = ss.getSheetByName(table_name);
+  if (!sh) throw new Error(`Sheet "${table_name}" not found!`);
+
+  const headers = getColumnIndexes(table_name);
+
+  const filter = sh.getFilter();
+  if (filter) filter.remove();
+
+  const lastRow = sh.getLastRow();
+
+  if (lastRow < 2) return "No orders to update";
+
+  if (!headers['ID']) return "Failed to get ID in headers";
+
+  // Read order IDs
+  const orderIds = sh.getRange(2, headers['ID'] + 1, lastRow - 1, 1).getValues(); 
+
+  // Collect orders to process
+  const ordersToProcess = new Set();
+  for (const backetKey in backets) {
+    const backet = backets[backetKey];
+    if (!Object.hasOwn(backet, 'orders')) return "no bucket";
+
+    for (const orderId in backet.orders) {
+      ordersToProcess.add(String(orderId));
+    }
+  }
+
+  let updatedCount = 0;
+
+  for (let i = 0; i < orderIds.length; i++) {
+    const orderId = String(orderIds[i][0]).trim(); // normalize
+
+    if (!orderId || !ordersToProcess.has(orderId)) continue; // skip spacer / empty rows
+
+    const row_index = i + 2;
+    sh.getRange(row_index, headers['Статус'] + 1).setValue("Розраховано");
+    sh.getRange(row_index, 1, 1, sh.getLastColumn()).setBackground("#73716b");
+    
+    updatedCount++;
+  }
+
+  return `Processed ${updatedCount} order rows in ` + table_name;
 }

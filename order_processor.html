@@ -1,17 +1,21 @@
 <html>
 <head>
   <base target="_top">
-  <?!= HtmlService.createHtmlOutputFromFile('styles').getContent(); ?>
+  <?!= HtmlService.createHtmlOutputFromFile('styles_processor').getContent(); ?>
 </head>
 
 <body>
 <script>
 
+  let g_active_table = null;
   let order_tables = [];
   let order_buckets = {};
   let checked_orders = new Set();
+  let pending_buckets = null;
 
   google.script.run.withSuccessHandler(function(data) {
+    console.log("Table data fetched");
+
     order_tables = data;
     const select = document.getElementById("order-table");
     select.innerHTML = order_tables.map((table, idx) =>
@@ -28,7 +32,7 @@
     init_form(order_tables[0]);
   }).get_order_tables();
 
-
+//----------------------------------------------------------------------------------------------
 document.addEventListener("DOMContentLoaded", function () {
   const cb0 = document.getElementById("select-all-0");
   const cb1 = document.getElementById("select-all-1");
@@ -48,8 +52,13 @@ document.addEventListener("DOMContentLoaded", function () {
 
 //----------------------------------------------------------------------------------------------
 function init_form(table_name) {
+
+  g_active_table = table_name;
+
   google.script.run.withSuccessHandler(function(data) {
     
+    console.log("Bucket data fetched");
+
     clear_all();
 
     order_buckets = data;
@@ -57,8 +66,10 @@ function init_form(table_name) {
     for (const [key, obj] of Object.entries(data.open)) {
       if (!obj || !obj.orders) { continue; }
 
+      set_bucket_header(key, obj.accounts)
+
       for (const [orderId, orderArray] of Object.entries(obj.orders)) {
-        add_order_block(key, orderId, orderArray);
+        add_order_block_select(key, orderId, orderArray);
       }
     }
 
@@ -72,6 +83,8 @@ function init_form(table_name) {
     /*for (order of data.closed){
       add_order_closed("order-closed", order);
     }*/
+
+    disableConfirmBtn(false);
 
   }).prepare_calculation_info(table_name);
 }
@@ -96,7 +109,31 @@ function clear_all()
 }
 
 //----------------------------------------------------------------------------------------------
-function add_order_block(bucket_id, orderId, orderArray) {
+function set_bucket_header(key, accounts){
+  const el_id = document.getElementById("bucket-id-" + key);
+  const el_desc = document.getElementById("bucket-desc-" + key);
+  if (!el_id || !el_desc) return
+  
+  el_id.textContent = "Bucket: " + key;
+
+  const names = accounts.map(a => a._name);
+  el_desc.textContent = names.join(', ');
+}
+
+//----------------------------------------------------------------------------------------------
+function set_bucket_confirm_header(key, accounts){
+  const el_id = document.getElementById("confirm-bucket-id-" + key);
+  const el_desc = document.getElementById("confirm-bucket-desc-" + key);
+  if (!el_id || !el_desc) return
+  
+  el_id.textContent = "Bucket: " + key;
+
+  const names = accounts.map(a => a._name);
+  el_desc.textContent = names.join(', ');
+}
+
+//----------------------------------------------------------------------------------------------
+function add_order_block_select(bucket_id, orderId, orderArray) {
   const table = document.getElementById("order-bucket-" + bucket_id);
   const tbody = table.tBodies[0];
 
@@ -130,6 +167,39 @@ function add_order_block(bucket_id, orderId, orderArray) {
 
       tdCheckbox.appendChild(checkbox);
 
+      // Order ID cell with rowspan
+      const tdOrderId = tr.insertCell();
+      tdOrderId.className = "order-id-cell";
+      tdOrderId.rowSpan = rowspan;
+      tdOrderId.textContent = orderId;
+    }
+
+    // Suborder cells (account, total, base, profit)
+    const tdAccount = tr.insertCell();
+    tdAccount.textContent = row.account;
+
+    const tdTotal = tr.insertCell();
+    tdTotal.textContent = Number(row.total).toFixed(2);
+
+    const tdBase = tr.insertCell();
+    tdBase.textContent = Number(row.base).toFixed(2);
+
+    const tdProfit = tr.insertCell();
+    tdProfit.textContent = Number(row.profit).toFixed(2);
+  });
+}
+
+//----------------------------------------------------------------------------------------------
+function add_order_block_confirm(bucket_id, orderId, orderArray) {
+  const table = document.getElementById("confirm-order-bucket-" + bucket_id);
+  const tbody = table.tBodies[0];
+
+  const rowspan = orderArray.length;
+
+  orderArray.forEach((row, index) => {
+    const tr = tbody.insertRow();
+    
+    if (index === 0) {
       // Order ID cell with rowspan
       const tdOrderId = tr.insertCell();
       tdOrderId.className = "order-id-cell";
@@ -275,47 +345,160 @@ function update_summary_table(bucket_id, total = 0, base = 0, profit = 0)
 }
 
 //----------------------------------------------------------------------------------------------
-function close_modal() {
-  document.getElementById("confirmModal").style.display = "none";
-  document.body.classList.remove("modal-open");
+function update_summary_confirm_table(bucket_id, total = 0, base = 0, profit = 0)
+{
+  const totalCell = document.getElementById("confirm-total_bucket_" + bucket_id);
+  const baseCell = document.getElementById("confirm-base_bucket_" + bucket_id);
+  const profitCell = document.getElementById("confirm-profit_bucket_" + bucket_id);
+
+  if (totalCell) totalCell.textContent = total.toFixed(2) + " грн";
+  if (baseCell) baseCell.textContent = base.toFixed(2) + " грн";
+  if (profitCell) profitCell.textContent = profit.toFixed(2) + " грн";
+}
+
+//----------------------------------------------------------------------------------------------
+function toggle_confirm_modal(visible) {
+  if (visible){
+    document.getElementById("confirmModal").style.display = "block";
+    document.body.classList.add("modal-open");
+  } else {
+    document.getElementById("confirmModal").style.display = "none";
+    document.body.classList.remove("modal-open");
+  }
+}
+
+//----------------------------------------------------------------------------------------------
+function disableConfirmBtn(flag = false) {
+  const confirmBtn = document.querySelector(".confirm-btn");
+  if (flag === false){
+    confirmBtn.innerText = "Підтвердити";
+  } else {
+    confirmBtn.innerText = "Обробка...";
+  }
+  confirmBtn.disabled = flag;
+}
+
+//----------------------------------------------------------------------------------------------
+function calculate_process_buckets()
+{
+  if (!pending_buckets) {
+    pending_buckets = new Map();
+  } else {
+    pending_buckets.clear();
+  }
+
+  for (const [bucket_id, bucket] of Object.entries(order_buckets.open)) {
+    if (!bucket || !bucket.orders) { continue; }
+
+    const filtered_orders = {};
+
+    let total = 0;
+    let base = 0;
+    let profit = 0;
+
+    for (const [order_id, order_array] of Object.entries(bucket.orders)) {
+      if (!checked_orders.has(order_id)) continue;
+
+      const cloned_rows = order_array.map(row => ({ ...row }));
+      filtered_orders[order_id] = cloned_rows;
+
+      for (const row of cloned_rows) {
+        total += row.total || 0;
+        base += row.base || 0;
+        profit += row.profit || 0;
+      }
+    }
+
+    if (Object.keys(filtered_orders).length > 0) {
+          pending_buckets.set(bucket_id, {
+              accounts: bucket.accounts.map(a => a._name),
+              orders: filtered_orders,
+              total,
+              base,
+              profit
+          });
+      }
+  }
+}
+
+//----------------------------------------------------------------------------------------------
+function process_confirm()
+{
+    clear_table_rows('confirm-order-bucket-0');
+    clear_table_rows('confirm-order-bucket-1');
+
+    calculate_process_buckets();
+
+    if (pending_buckets.size === 0) {
+      alert("No data to process");
+      return;
+    }
+
+    document.getElementById("div-confirm-bucket-0").style.display = "none";
+    document.getElementById("div-confirm-bucket-1").style.display = "none";
+
+    toggle_confirm_modal(true);
+
+    for (const [key, obj] of pending_buckets.entries()) {
+      if (!obj || !obj.orders) { continue; }
+
+      document.getElementById("div-confirm-bucket-" + key).style.display = "block";
+      set_bucket_confirm_header(key, obj.accounts)
+
+      for (const [orderId, orderArray] of Object.entries(obj.orders)) {
+        add_order_block_confirm(key, orderId, orderArray);
+      }
+
+      update_summary_confirm_table(key, obj.total, obj.base, obj.profit);
+    }
+}
+
+//----------------------------------------------------------------------------------------------
+function map_2_obj(map) {
+  const obj = {};
+  for (const [key, value] of map.entries()) {
+    obj[key] = {
+      accounts: Array.isArray(value.accounts)
+        ? value.accounts.map(a => a._name || a) // extract name from Account instance
+        : [],
+      orders: value.orders,
+      total: value.total,
+      base: value.base,
+      profit: value.profit
+    };
+  }
+  return obj;
 }
 
 //----------------------------------------------------------------------------------------------
 function confirm_submit() {
-  const confirmBtn = document.querySelector(".confirm-btn");
-  confirmBtn.disabled = true;
-  confirmBtn.innerText = "Processing...";
+  
+  const obj_map = map_2_obj(pending_buckets);
 
-  document.getElementById("addItemBtn").disabled = true;
+  disableConfirmBtn(true);
 
-  google.script.run.withSuccessHandler(function(response) {
-    
-      // Load items from Google Sheets
-    google.script.run.withSuccessHandler(function(data) {
+  google.script.run
+    .withSuccessHandler(function (response) {
+      alert(response);
 
-      close_modal();
-      
-      reset_form();
-      confirmBtn.disabled = false;
-      confirmBtn.innerText = "Підтвердити";
-
-      items = data;
-      document.getElementById("addItemBtn").disabled = false;
-      document.getElementById('positions').replaceChildren();
-
-      const select = document.getElementById('payment_select');
-      select.selectedIndex = 0; // selects the first option (placeholder)
-
-      add_position(); // start with a new blank position
-      updateTotalOrder();
-
-    }).deserialize_articuls();
-
-  }).withFailureHandler(function(error) {
-    alert("Error adding order: " + error.message);
-    confirmBtn.disabled = false;
-    confirmBtn.innerText = "Підтвердити";
-  }).add_order('Orders_v2', pending_order_data);
+      google.script.run
+        .withSuccessHandler(function (data) {
+          alert(data);
+          console.log(data);
+          disableConfirmBtn(false);
+          google.script.host.close();
+        })
+        .withFailureHandler(function (err) {
+          alert("Post-calc error: " + err.message);
+          disableConfirmBtn(false);
+        })
+        .onCompleteCalculateOperation(obj_map, g_active_table);
+    })
+    .withFailureHandler(function (error) {
+      alert("Error calculation orders: " + error.message);
+      disableConfirmBtn(false);
+    })
+    .onCalculationConfirmed(obj_map);
 }
 </script>
 
@@ -323,7 +506,8 @@ function confirm_submit() {
   <select id="order-table"></select><br>
 
   <div class="position">
-    <h3>Bucket #0:</h3>
+    <h3 id="bucket-id-0"></h3>
+    <h5 id="bucket-desc-0"></h5>
     <table id="order-bucket-0">
       <thead>
         <tr>
@@ -360,7 +544,8 @@ function confirm_submit() {
   </div>
 
   <div class="position">
-    <h3>Bucket #1:</h3>
+    <h3 id="bucket-id-1"></h3>
+    <h5 id="bucket-desc-1"></h5>
     <table id="order-bucket-1">
       <thead>
         <tr>
@@ -398,7 +583,8 @@ function confirm_submit() {
   </div>
 
   <div class="button-row">
-    <button id="submitOrderBtn" onclick="submitOrderConfirm()">Next</button>
+    <button class="cancel-btn" onclick="google.script.host.close()">Cancel</button>
+    <button class="confirm-btn" onclick="process_confirm()">Next</button>
   </div>
 
   <h3>Cancelled:</h3>
@@ -440,14 +626,87 @@ function confirm_submit() {
   <!-- ===================== CONFIRMATION MODAL ===================== -->
   <div id="confirmModal" class="modal">
     <div class="modal-content">
-      <h2>Підтвердіть замовлення</h2>
-      <div id="confirm-container"></div>
+      <h2>Підтвердіть розрахунок</h2>
+      <div id="confirm-container">
+        <div id="div-confirm-bucket-0" class="position">
+          <h3 id="confirm-bucket-id-0"></h3>
+          <h5 id="confirm-bucket-desc-0"></h5>
+          <table id="confirm-order-bucket-0">
+            <thead>
+              <tr>
+                <th>Order ID</th>
+                <th>Account</th>
+                <th>Total</th>
+                <th>Base</th>
+                <th>Profit</th>
+              </tr>
+            </thead>
+            <tbody></tbody>  
+          </table>
+
+          <!-- confirmation summary -->
+          <div class="summary-table-container">
+            <table class="summary-table">
+              <tbody>
+                <tr>
+                  <td class="summary-label">Total</td>
+                  <td id="confirm-total_bucket_0" class="summary-value">0 грн</td>
+                </tr>
+                <tr>
+                  <td class="summary-label">Base</td>
+                  <td id="confirm-base_bucket_0" class="summary-value">0 грн</td>
+                </tr>
+                <tr>
+                  <td class="summary-label">Profit</td>
+                  <td id="confirm-profit_bucket_0" class="summary-value">0 грн</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+      </div>
+        
+        <div id="div-confirm-bucket-1" class="position">
+          <h3 id="confirm-bucket-id-1"></h3>
+          <h5 id="confirm-bucket-desc-1"></h5>
+          <table id="confirm-order-bucket-1">
+            <thead>
+              <tr>
+                <th>Order ID</th>
+                <th>Account</th>
+                <th>Total</th>
+                <th>Base</th>
+                <th>Profit</th>
+              </tr>
+            </thead>
+            <tbody></tbody>  
+          </table>
+          <!-- confirmation summary -->
+          <div class="summary-table-container">
+            <table class="summary-table">
+              <tbody>
+                <tr>
+                  <td class="summary-label">Total</td>
+                  <td id="confirm-total_bucket_1" class="summary-value">0 грн</td>
+                </tr>
+                <tr>
+                  <td class="summary-label">Base</td>
+                  <td id="confirm-base_bucket_1" class="summary-value">0 грн</td>
+                </tr>
+                <tr>
+                  <td class="summary-label">Profit</td>
+                  <td id="confirm-profit_bucket_1" class="summary-value">0 грн</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+      </div>
+
+      </div>
      
       <div class="modal-buttons">
-        <hr>
         <label id="confirm-container-bottom" style="font-size: 1.2rem; font-weight: bold;"></label><br>
 
-        <button class="cancel-btn" onclick="close_modal()">Скасувати</button>
+        <button class="cancel-btn" onclick="toggle_confirm_modal(false)">Скасувати</button>
         <button class="confirm-btn" onclick="confirm_submit()">Підтвердити</button>
       </div>
     </div>

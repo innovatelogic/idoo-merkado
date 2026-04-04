@@ -1,10 +1,7 @@
 function get_transfer_price(name = 'Transfer') {
-  const ss = SpreadsheetApp.getActiveSpreadsheet();
-  const sheet = ss.getSheetByName(name);
-  
-  if (!sheet) {
-    throw new Error("Sheet not found: " + name);
-  }
-  const value = sheet.getRange("A2").getValue();
-  return value;
+  return get_config_transfer_price();
+}
+
+function get_config_transfer_price(){
+  return get_config_value("Transfer price UAH/KG");
 }
