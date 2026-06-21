@@ -1,0 +1,16 @@
+.git/
+.env
+
+google-cloud-sdk/
+google-cloud-sdk/**
+src/
+**/src/
+**/src/**
+external/
+**/external/
+**/external/**
+**/node_modules/
+**/node_modules/**
+
+
+
