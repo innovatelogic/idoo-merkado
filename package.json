@@ -1,0 +1,11 @@
+{
+  "name": "workspace",
+  "private": true,
+  "devDependencies": {
+    "@mcpher/gas-fakes": "latest",
+    "esbuild": "^0.25.0"
+  },
+  "scripts": {
+    "test": "node --test test/formula_test.gs"
+  }
+}

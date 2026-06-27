@@ -1,0 +1,14 @@
+google-cloud-sdk/
+node_modules
+.env
+.DS_Store
+
+# generated artifacts
+.generated/
+dist/
+build/
+coverage/
+*.log
+
+# generated GAS bridge file in source tree
+/dst/00_merkado.gs

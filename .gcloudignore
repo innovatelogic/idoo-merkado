@@ -1,0 +1,10 @@
+# Ignore everything by default
+**/*
+
+# Explicitly allow ONLY the files you want to sync to Google Apps Script
+!dst/appsscript.json
+!dst/Code.gs
+!dst/formula.gs
+
+# Do NOT include the line below—by omitting it, formula_test.gs stays ignored
+# !dst/formula_test.gs

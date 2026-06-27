@@ -1,0 +1,19 @@
+{
+  "name": "Idoo-Merkado DevContainer",
+  "build": {
+    "dockerfile": "Dockerfile"
+  },
+  "postCreateCommand": "npm install && npm install -g @google/clasp",
+  "forwardPorts": [],
+  "workspaceMount": "source=${localWorkspaceFolder},target=/workspace,type=bind",
+  "workspaceFolder": "/workspace",
+  "customizations":
+  {
+      "vscode":
+      {
+        "extensions": [
+            "tomhoh.vscode-gas-fakes"
+        ]
+    }
+  }
+}
