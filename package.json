@@ -6,6 +6,6 @@
     "esbuild": "^0.25.0"
   },
   "scripts": {
-    "test": "node --test test/formula_test.gs"
+    "test": "node --test test/*.gs"
   }
 }
