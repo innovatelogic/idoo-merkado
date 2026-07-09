@@ -145,5 +145,5 @@ function deserialize_articuls(table_name = 'Articuls_v2') {
 }
 
 if (typeof module !== "undefined" && module.exports) {
-    module.exports = { Articul };
+    //module.exports = { Articul, deserialize_articuls };
 }

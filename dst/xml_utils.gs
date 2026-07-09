@@ -283,5 +283,5 @@ function TEST_applyExportRulesXML(){
 // export
 //----------------------------------------------------------------------------------------------
 if (typeof module !== "undefined" && module.exports) {
-  module.exports = { applyExportRules, applyExportRulesXML };
+  //module.exports = { applyExportRules, applyExportRulesXML };
 }
