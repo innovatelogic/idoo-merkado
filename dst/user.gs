@@ -12,9 +12,10 @@
  */
 
 class User {
-  constructor(user_id, sheet_id, role = 0) {
+  constructor(user_id, sheet_id, ctx, role = 0) {
         this.user_id = user_id;
         this.sheet_id = sheet_id;
+        this.ctx = ctx;
         this.role = role;
     }
 
@@ -22,7 +23,7 @@ class User {
         return (this.role & role) === role;
     }
 
-    sheet(name){
+    spreadsheet(){
       if (this.sheet_id === null || this.sheet_id === '') { 
         return null;
       }
@@ -30,10 +31,23 @@ class User {
       if (!ss){
         throw new Error(`[User::sheet] spreadsheet "${this.sheet_id}" not found`);
       }
+      return ss;
+    }
+
+    sheet(name){
+      /*if (this.sheet_id === null || this.sheet_id === '') { 
+        return null;
+      }
+      const ss = SpreadsheetApp.openById(this.sheet_id);
+      if (!ss){
+        throw new Error(`[User::sheet] spreadsheet "${this.sheet_id}" not found`);
+      }*/
+
+      const ss = this.spreadsheet();
 
       const sh = ss.getSheetByName(name);
       if (!sh) {
-        throw new Error(`[User::sheet] sheet "${name}" in spreadsheet "${this.sheet_id}" not found `)
+        throw new Error(`[User::sheet] sheet "${name}" in spreadsheet "${this.sheet_id}" not found `);
       }
       return sh;
     }
@@ -78,6 +92,7 @@ function deserialize_users(spreadsheet_id = "1QjpZXzhDAZqxbDVc3yAxWnH0Qa-DTrf2B7
       users.set(row[headers['user_id']], 
                 new User(row[headers['user_id']],
                          row[headers['sheet_id']],
+                         row[headers['user_ctx']],
                          row[headers['role']]));
     } catch (e) {
       Logger.log(`Row failed: ${e.message}`);
@@ -115,6 +130,7 @@ function deserialize_user(user_id, spreadsheet_id = "1QjpZXzhDAZqxbDVc3yAxWnH0Qa
 
   return new User(row[headers['user_id']],
                          row[headers['sheet_id']],
+                         row[headers['user_ctx']],
                          row[headers['role']]);
 }
 
@@ -123,22 +139,26 @@ function get_current_user(user_id){
   return deserialize_user(Session.getActiveUser().getEmail());
 }
 
+
+
 //----------------------------------------------------------------------------------------------
 var UserRole = User.Role;
 if (typeof module !== "undefined" && module.exports) {
     module.exports = { User,
                        UserRole,
-                       get_current_user };
+                       get_current_user,
+                       request_root_spreadsheet };
 }
+
 
 //----------------------------------------------------------------------------------------------
 function TEST_User_rights()
 {
- const usr_SELLER = new User("1", "", User.Role.SELLER);
-  const usr_MANAGER = new User("1", "", User.Role.MANAGER);
-  const usr_ACCOUNTANT = new User("1", "", User.Role.ACCOUNTANT);
-  const usr_OWNER = new User("1", "", User.Role.OWNER);
-  const usr_ADMIN = new User("1", "", User.Role.ADMIN);
+  const usr_SELLER = new User("1", "", null, User.Role.SELLER);
+  const usr_MANAGER = new User("1", "", null, User.Role.MANAGER);
+  const usr_ACCOUNTANT = new User("1", "", null, User.Role.ACCOUNTANT);
+  const usr_OWNER = new User("1", "", null, User.Role.OWNER);
+  const usr_ADMIN = new User("1", "", null, User.Role.ADMIN);
 
   // SELLER
   if (!usr_SELLER.has_role(User.Role.SELLER)) throw new Error("Test failed");
@@ -163,6 +183,23 @@ function TEST_User_rights()
   if (!usr_ADMIN.has_role(User.Role.SELLER | User.Role.MANAGER)) throw new Error("Test failed");
   if (!usr_ADMIN.has_role(User.Role.MANAGER | User.Role.ACCOUNTANT)) throw new Error("Test failed");
   if (!usr_ADMIN.has_role(User.Role.SELLER | User.Role.MANAGER | User.Role.ACCOUNTANT)) throw new Error("Test failed");
+}
+
+//----------------------------------------------------------------------------------------------
+function TEST_Request_Form()
+{
+  const usr = new User("1", "", JSON.stringify([
+      {
+        "name": "🟢 DEV: Bike",
+        "id": "1un_JsVWL7UC5J-2UvoxkOFhcDj__CdCUoTzTW2zxqrk"
+      },
+      {
+        "name": "🟢 DEV: Xbat",
+        "id": "1TD1uQTRf3gCqHRXxAt5Q2jTzsTjZ-o0hlRY-vjT41pE"
+      }
+    ]), User.Role.SELLER);
+
+    //usr.request_root_spreadsheet();
 }
 
 

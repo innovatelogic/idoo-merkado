@@ -1,12 +1,4 @@
 
-//let IdM_eval_formula;
-//let applyExportRules;
-//let applyExportRulesXML;
-
-if (typeof module !== "undefined" && module.exports) {
-  //({ IdM_eval_formula } = require("./formula.gs"));
-  //({ applyExportRules, applyExportRulesXML } = require("./xml_utils.gs"));
-}
 
 class Articul {
   constructor(context){
@@ -100,7 +92,7 @@ function deserialize_articuls(table_name = 'Articuls_v2') {
   const lastCol = sh.getLastColumn();
   if (lastRow < 2) return [];
 
-  const headers = getColumnIndexes(table_name);
+  const headers = get_table_header_map_sheet(sh);
   const data = sh.getRange(2, 1, lastRow - 1, lastCol)
                   .getValues()
                   .filter(row => row.some(cell => cell !== '' && cell !== null));
@@ -145,5 +137,5 @@ function deserialize_articuls(table_name = 'Articuls_v2') {
 }
 
 if (typeof module !== "undefined" && module.exports) {
-    //module.exports = { Articul, deserialize_articuls };
+    module.exports = { Articul, deserialize_articuls };
 }

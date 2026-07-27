@@ -275,7 +275,7 @@ function TEST_applyExportRulesXML(){
     throw new Error(`Test failed. Expected \n ${expected} \n got >>>> \n ${result}`);
   }
 
-  console.log(`✅ ${getCallerFunctionName()} Test passed`);
+  console.log(`✅ ${get_caller_function_name()} Test passed`);
 }
 
 

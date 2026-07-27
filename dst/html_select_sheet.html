@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html>
+<body>
+
+<h3>Select spreadsheet</h3>
+
+<select id="sheet">
+<? for (let s of docs) { ?>
+  <option value="<?= s.id ?>">
+    <?= s.name ?>
+  </option>
+<? } ?>
+</select>
+
+<br><br>
+
+<button onclick="selectSheet()">
+  Continue
+</button>
+
+
+<script>
+
+function selectSheet() {
+
+  const id =
+    document.getElementById("sheet").value;
+
+  google.script.run
+    .withSuccessHandler(function() {
+       google.script.host.close();
+    })
+    .setSelectedSpreadsheet(id);
+}
+
+</script>
+
+</body>
+</html>
