@@ -1,8 +1,3 @@
-
-if (typeof module !== "undefined" && module.exports) {
-  //var { IdM_eval_formula } = require("./formula.gs");
-}
-
 //----------------------------------------------------------------------------------------------
 // Apply export rules to XML string
 //----------------------------------------------------------------------------------------------
@@ -115,7 +110,7 @@ function walk(node, context) {
   return node;
 }
 
-
+//----------------------------------------------------------------------------------------------
 function build_xml_tree(xml_node, context) {
   if (!xml_node) { return; }
   
@@ -132,6 +127,57 @@ function equal_xml(actual, expected) {
   return a === b;
 }
 
+//----------------------------------------------------------------------------------------------
+// Clone recursively
+//----------------------------------------------------------------------------------------------
+function clone_xml_element(element) {
+  const ns = element.getNamespace();
+  const clone = XmlService.createElement(element.getName(), ns);
+
+  // Copy attributes
+  element.getAttributes().forEach(attr => {
+    clone.setAttribute(attr.getName(), attr.getValue());
+  });
+
+  // Copy children recursively
+  element.getChildren().forEach(child => {
+    clone.addContent(clone_xml_element(child));
+  });
+
+  // Copy text nodes
+  const text = element.getText(); // get text
+  if (text && text.trim() !== "") {
+     const useCdata = element.getAttribute("cdata")?.getValue() === "true";
+    if (useCdata) {
+      const cleanText = text.trim();
+      clone.addContent(XmlService.createCdata(cleanText));
+      clone.removeAttribute('cdata');
+    } else {
+      clone.setText(text);
+    }
+  }
+
+  return clone;
+}
+
+//----------------------------------------------------------------------------------------------
+function add_xml_node_text(parent, tag, text) {
+  const el = XmlService.createElement(tag);
+  if (text) el.setText(text);
+  parent.addContent(el);
+  return el;
+}
+
+//----------------------------------------------------------------------------------------------
+// export
+//----------------------------------------------------------------------------------------------
+if (typeof module !== "undefined" && module.exports) {
+  module.exports = { add_xml_node_text,
+                     clone_xml_element
+                    };
+}
+
+//----------------------------------------------------------------------------------------------
 function TEST_applyExportRulesXML(){
 
     let context = {
@@ -276,12 +322,4 @@ function TEST_applyExportRulesXML(){
   }
 
   console.log(`✅ ${get_caller_function_name()} Test passed`);
-}
-
-
-//----------------------------------------------------------------------------------------------
-// export
-//----------------------------------------------------------------------------------------------
-if (typeof module !== "undefined" && module.exports) {
-  //module.exports = { applyExportRules, applyExportRulesXML };
 }

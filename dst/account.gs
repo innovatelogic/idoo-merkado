@@ -56,16 +56,10 @@ function test_run_accounts() {
 }
 
 //----------------------------------------------------------------------------------------------
-function _deserialize_accounts(ss) { // table_name = 'Accounts_v2'
+function _deserialize_accounts(sh) { // table_name = 'Accounts_v2'
 
-  if (!ss) {
-    throw new Error(`[_deserialize_accounts] invalid input param ss`);
-  }
-
-  const table_name = 'Accounts_v2';
-  const sh = ss.getSheetByName(table_name);
   if (!sh) {
-    throw new Error(`[_deserialize_accounts] sheet "${table_name}" not found in spreadsheet`)
+    throw new Error(`[_deserialize_accounts] invalid input param`)
   }   
 
   const lastRow = sh.getLastRow();
@@ -110,6 +104,17 @@ function _get_account_buckets(ss) // table_name = "Accounts_v2"
 
   const buckets = new Map();
 
+  accounts.forEach(a => {
+    if (!buckets.has(a._bucket)) { buckets.set(a._bucket, []); }
+    buckets.get(a._bucket).push(a);
+  });
+  return buckets;
+}
+
+//----------------------------------------------------------------------------------------------
+function accounts_to_buckets_map(accounts)
+{
+  const buckets = new Map();
   accounts.forEach(a => {
     if (!buckets.has(a._bucket)) { buckets.set(a._bucket, []); }
     buckets.get(a._bucket).push(a);
@@ -177,6 +182,7 @@ function test_mock_accounts() {
 if (typeof module !== "undefined" && module.exports) {
     module.exports = { deserialize_accounts,
                        _get_account_buckets,
-                       _deserialize_accounts
+                       _deserialize_accounts,
+                       accounts_to_buckets_map
                     };
 }

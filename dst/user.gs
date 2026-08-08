@@ -103,43 +103,74 @@ function deserialize_users(spreadsheet_id = "1QjpZXzhDAZqxbDVc3yAxWnH0Qa-DTrf2B7
 }
 
 //----------------------------------------------------------------------------------------------
-function deserialize_user(user_id, spreadsheet_id = "1QjpZXzhDAZqxbDVc3yAxWnH0Qa-DTrf2B7wg9fDyfDk")
+function deserialize_user(curr_user_id, curr_spreadsheet_id, users_spreadsheet_id = "1QjpZXzhDAZqxbDVc3yAxWnH0Qa-DTrf2B7wg9fDyfDk")
 {
-  var ss = SpreadsheetApp.openById(spreadsheet_id);
+  var sh = SpreadsheetApp.openById(users_spreadsheet_id);
   var table_name = "users";
-  const sh = ss.getSheetByName(table_name);
+  const ss = sh.getSheetByName(table_name);
 
-  if (!sh) { 
-    throw new Error(`Sheet "${table_name}" not found!`);
+  if (!ss) { 
+    throw new Error(`[deserialize_user] Sheet "${table_name}" not found!`);
   }
 
-  const lastRow = sh.getLastRow();
-  const lastCol = sh.getLastColumn();
+  const desc = get_user_desc(ss, curr_user_id);
+
+  if (!desc){
+    throw new Error(`[deserialize_user] User not found!`);
+  }
+
+  const current = desc[curr_spreadsheet_id];
+
+  if (!current){
+    throw new Error(`[deserialize_user] Spreadsheet "${curr_spreadsheet_id}" not found!`);
+  }
+  
+  return new User(curr_user_id, curr_spreadsheet_id, current, current.role);
+}
+
+//----------------------------------------------------------------------------------------------
+function get_current_user(){
+  const curr_user_id = Session.getActiveUser().getEmail();
+  const curr_spreadsheet_id = SpreadsheetApp.getActiveSpreadsheet().getId();
+  const users_spreadsheet_id = "1QjpZXzhDAZqxbDVc3yAxWnH0Qa-DTrf2B7wg9fDyfDk";
+
+  return deserialize_user(curr_user_id, curr_spreadsheet_id, users_spreadsheet_id);
+}
+
+//----------------------------------------------------------------------------------------------
+function TEST_deserialize_user()
+{
+  const curr_user_id = "dev.user@idoo.work";
+  const curr_spreadsheet_id = "1ygEPOsFbzveVtx90pWYMkiOlZJdbOc7HJiLaGN3vKZM";
+  const users_spreadsheet_id = "1QjpZXzhDAZqxbDVc3yAxWnH0Qa-DTrf2B7wg9fDyfDk";
+
+  const user = deserialize_user(curr_user_id, curr_spreadsheet_id, users_spreadsheet_id);
+
+  console.log(user);
+}
+
+//----------------------------------------------------------------------------------------------
+function get_user_desc(ss, user_id) {
+
+  if (!ss || !user_id) { 
+    throw new Error(`[get_user_desc] invalid input param`);
+  }
+
+  const lastRow = ss.getLastRow();
+  const lastCol = ss.getLastColumn();
   if (lastRow < 2) return [];
 
-  const headers = get_table_header_map_sheet(sh);
-  const data = sh.getRange(2, 1, lastRow - 1, lastCol)
+  const headers = get_table_header_map_sheet(ss);
+  const data = ss.getRange(2, 1, lastRow - 1, lastCol)
                   .getValues()
                   .filter(row => row.some(cell => cell !== '' && cell !== null));
 
   const row = data.find(r => r[headers['user_id']] === user_id);
 
-  if (!row) {
-    return null;
-  }
+  if (!row) { throw new Error(`[get_user_desc] User not found!`); }
 
-  return new User(row[headers['user_id']],
-                         row[headers['sheet_id']],
-                         row[headers['user_ctx']],
-                         row[headers['role']]);
+  return JSON.parse(row[headers['user_ctx']]);
 }
-
-//----------------------------------------------------------------------------------------------
-function get_current_user(user_id){
-  return deserialize_user(Session.getActiveUser().getEmail());
-}
-
-
 
 //----------------------------------------------------------------------------------------------
 var UserRole = User.Role;

@@ -2,7 +2,7 @@
 //----------------------------------------------------------------------------------------------
 // Returns current function name
 //----------------------------------------------------------------------------------------------
-function getCallerFunctionName() {
+function get_caller_function_name() {
   const stack = new Error().stack.split("\n");
   // stack[0] = "Error"
   // stack[1] = at getCurrentFunctionName
@@ -19,4 +19,23 @@ function getTimestamp() {
     ss.getSpreadsheetTimeZone(),
     "yyyy-MM-dd HH:mm:ss"
   );
+}
+
+function evaluate_template(template, data) {
+  if (data) {
+    Object.keys(data).forEach(key => {
+      template[key] = data[key];
+    });
+  }
+
+  return template.evaluate().getContent();
+}
+
+//----------------------------------------------------------------------------------------------
+// export
+//----------------------------------------------------------------------------------------------
+if (typeof module !== "undefined" && module.exports) {
+  module.exports = { evaluate_template,
+                     get_caller_function_name
+                    };
 }

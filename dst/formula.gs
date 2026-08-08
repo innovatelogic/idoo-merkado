@@ -62,11 +62,11 @@ function IdM_eval_formula(str, context, forceStringMode = false) {
         }
 
         // Otherwise, it's part of a larger string → keep string behavior
-        return str.replace(/\$\{([^}:]+)(?::(number|int|float|string))?\}/g, (_, name) => {
-        if (context[name] === undefined) {
-            throw new Error(`Unknown variable ${name}`);
-        }
-        return context[name];
+        return str.replace(/\$\{([^}:]+)(?::(number|int|float|string))?\}/g, (_, name, type) => {
+          if (context[name] === undefined) {
+              throw new Error(`Unknown variable ${name} in context ${JSON.stringify(context, null, 2)}`);
+          }
+          return context[name];
         });
     }
 

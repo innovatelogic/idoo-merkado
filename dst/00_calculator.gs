@@ -1,11 +1,11 @@
 //----------------------------------------------------------------------------------------------
-function _deserialize_orders(sh) //table_name = "Orders_v2"
+function _deserialize_orders(sh, buckets) //table_name = "Orders_v2"
 {
   if (!sh) { 
     throw new Error(`[deserialize_orders] input param sh is null`);
   }
 
-  let buckets = _get_account_buckets(sh.getParent());
+  //let buckets = _get_account_buckets(sh.getParent());
 
   if (!buckets || buckets.size === 0) {
     SpreadsheetApp.getUi().alert("[deserialize_orders] No account backets found: exit");
@@ -141,26 +141,21 @@ function _get_processed_orders(sh) { // table_name = "Processing"
 }
 
 //----------------------------------------------------------------------------------------------
-function _prepare_calculation_info(table_name = "Orders_v2") {
+function _prepare_calculation_info(sh_ord, sh_proc, buckets) {
 
-  const curr_user = get_current_user();
-  if (!curr_user || !curr_user.has_role(UserRole.ACCOUNTANT | UserRole.OWNER)) {
-    return null;
-  }
+  console.log('[_prepare_calculation_info] begin');
 
-  const orders_table_name = "Orders_v2";
-  const sh_ord = curr_user.sheet(orders_table_name);
   if (sh_ord === null) { 
-    throw new Error(`[prepare_calculation_info]: User db "${orders_table_name}" not found`); 
+    throw new Error(`[_prepare_calculation_info]: invalid input param order sheet`); 
   }
   
-  const process_table_name = "Processing";
-  const sh_proc = curr_user.sheet(process_table_name);
+  //const process_table_name = "Processing";
+  //const sh_proc = curr_user.sheet(process_table_name);
   if (sh_proc === null) { 
-    throw new Error(`[prepare_calculation_info]: User db "${process_table_name}" not found`);
+    throw new Error(`[_prepare_calculation_info]: invalid input processing sheet`); 
   }
 
-  const all_orders = _deserialize_orders(sh_ord);
+  const all_orders = _deserialize_orders(sh_ord, buckets);
   const closed_orders = _get_processed_orders(sh_proc);
 
   //console.log(all_orders);

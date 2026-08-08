@@ -31,20 +31,3 @@ function get_config_value(sh, key) {
 
   return sh.getRange(rows[key], 2).getValue();
 }
-
-//----------------------------------------------------------------------------------------------
-function get_currency_rate(sh, curr1, curr2){
-  const raw = get_config_value(sh, ".Currency");
-
-  if (curr1 == '' || curr2 == ''){
-    throw new Error(`[get_currency_rate] error: empty currency value!`);
-  }
-
-  if (curr1 == curr2){
-    return 1.0;
-  }
-
-  const rates = typeof raw === "string" ? JSON.parse(raw) : raw;
-
-  return rates["Currency"][curr1][curr2];
-}
